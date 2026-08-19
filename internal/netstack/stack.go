@@ -43,14 +43,19 @@ type pendingEcho struct {
 // the peer's reply is delivered back into this stack within the same Send call.
 // No timers, no event queue — virtual time is advanced by each link traversal.
 type Stack struct {
-	clock    *clock.VirtualClock
-	iface    *fabric.Interface
-	addr     netip.Prefix
-	routes   *route.Table
-	arp      *arp.Cache
-	forward  bool
-	nextEcho uint16
-	pending  map[uint16]*pendingEcho
+	clock        *clock.VirtualClock
+	iface        *fabric.Interface
+	addr         netip.Prefix
+	routes       *route.Table
+	arp          *arp.Cache
+	forward      bool
+	nextEcho     uint16
+	pending      map[uint16]*pendingEcho
+	udpSockets   map[uint16]*UDPSocket
+	tcpListeners map[uint16]*TCPConn
+	tcpConns     map[tcpKey]*TCPConn
+	nextPort     uint16
+	nextISN      uint32
 }
 
 // New creates a stack bound to iface, attaches it as the interface's frame
@@ -67,12 +72,16 @@ func New(c *clock.VirtualClock, iface *fabric.Interface, cfg Config) (*Stack, er
 		timeout = DefaultARPTimeout
 	}
 	s := &Stack{
-		clock:   c,
-		iface:   iface,
-		addr:    cfg.Addr,
-		routes:  route.NewTable(),
-		arp:     arp.NewCache(timeout),
-		pending: make(map[uint16]*pendingEcho),
+		clock:        c,
+		iface:        iface,
+		addr:         cfg.Addr,
+		routes:       route.NewTable(),
+		arp:          arp.NewCache(timeout),
+		pending:      make(map[uint16]*pendingEcho),
+		udpSockets:   make(map[uint16]*UDPSocket),
+		tcpListeners: make(map[uint16]*TCPConn),
+		tcpConns:     make(map[tcpKey]*TCPConn),
+		nextPort:     firstEphemeral,
 	}
 	if err := s.routes.Add(route.Route{Prefix: cfg.Addr.Masked(), Interface: iface.Name}); err != nil {
 		return nil, err
@@ -175,6 +184,10 @@ func (s *Stack) handleIPv4(f ethernet.Frame) error {
 	switch pkt.Protocol {
 	case ipv4.ProtoICMP:
 		return s.handleICMP(pkt)
+	case ipv4.ProtoUDP:
+		return s.handleUDP(pkt)
+	case ipv4.ProtoTCP:
+		return s.handleTCP(pkt)
 	default:
 		return nil
 	}
