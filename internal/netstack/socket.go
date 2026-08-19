@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/netip"
 	"sort"
 	"time"
@@ -226,14 +227,16 @@ func (s *Stack) Dial(dst netip.Addr, port uint16) (*TCPConn, error) {
 
 // Accept returns the oldest established connection in the backlog. It errors
 // when no connection is pending. The handshake completes during the client's
-// Dial, so a connection is ready as soon as the server resumes.
+// Dial, so a connection is ready as soon as the server resumes. A connection
+// whose peer already closed (CLOSE-WAIT) is still accepted: accept(2) returns
+// the socket once established, regardless of a later peer FIN.
 func (l *TCPConn) Accept() (*TCPConn, error) {
 	l.stack.Tick()
 	if l.state != tcp.StateListen {
 		return nil, fmt.Errorf("netstack: not a listening socket")
 	}
 	for i, ch := range l.backlog {
-		if ch.state == tcp.StateEstablished {
+		if ch.state == tcp.StateEstablished || ch.state == tcp.StateCloseWait {
 			l.backlog = append(l.backlog[:i], l.backlog[i+1:]...)
 			return ch, nil
 		}
@@ -510,24 +513,7 @@ func seqGE(a, b uint32) bool {
 // public socket methods call it automatically.
 func (s *Stack) Tick() {
 	now := s.clock.Now()
-	keys := make([]tcpKey, 0, len(s.tcpConns))
-	for k := range s.tcpConns {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		a, b := keys[i], keys[j]
-		if cmp := a.localAddr.Compare(b.localAddr); cmp != 0 {
-			return cmp < 0
-		}
-		if a.localPort != b.localPort {
-			return a.localPort < b.localPort
-		}
-		if cmp := a.remoteAddr.Compare(b.remoteAddr); cmp != 0 {
-			return cmp < 0
-		}
-		return a.remotePort < b.remotePort
-	})
-	for _, k := range keys {
+	for _, k := range sortedTCPKeys(s.tcpConns) {
 		c := s.tcpConns[k]
 		c.tick()
 		if c.state == tcp.StateTimeWait && c.timeWaitUntil != 0 && now >= c.timeWaitUntil {
@@ -592,4 +578,80 @@ func (s *Stack) ephemeralPort() uint16 {
 func (s *Stack) allocISN() uint32 {
 	s.nextISN += 1000
 	return s.nextISN
+}
+
+// ConnInfo is one socket in the stack's connection table.
+type ConnInfo struct {
+	Proto  string // tcp | udp
+	Local  string // addr:port
+	Remote string // addr:port; "-" for unconnected UDP
+	State  string
+}
+
+// Netstat returns a snapshot of the socket table, sorted for determinism
+// (Proto, Local, Remote, State).
+func (s *Stack) Netstat() []ConnInfo {
+	out := make([]ConnInfo, 0, len(s.udpSockets)+len(s.tcpListeners)+len(s.tcpConns))
+	for _, port := range sortedUint16Keys(s.udpSockets) {
+		u := s.udpSockets[port]
+		if u.closed {
+			continue
+		}
+		remote := "-"
+		if u.connected {
+			remote = net.JoinHostPort(u.peerAddr.String(), fmt.Sprint(u.peerPort))
+		}
+		out = append(out, ConnInfo{Proto: "udp", Local: net.JoinHostPort(u.localAddr.String(), fmt.Sprint(port)), Remote: remote, State: "UNCONNECTED"})
+	}
+	for _, port := range sortedUint16Keys(s.tcpListeners) {
+		l := s.tcpListeners[port]
+		out = append(out, ConnInfo{Proto: "tcp", Local: net.JoinHostPort(l.localAddr.String(), fmt.Sprint(port)), Remote: "0.0.0.0:*", State: tcp.StateListen.String()})
+	}
+	for _, k := range sortedTCPKeys(s.tcpConns) {
+		c := s.tcpConns[k]
+		out = append(out, ConnInfo{Proto: "tcp", Local: net.JoinHostPort(c.localAddr.String(), fmt.Sprint(c.localPort)), Remote: net.JoinHostPort(c.remoteAddr.String(), fmt.Sprint(c.remotePort)), State: c.state.String()})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Proto != out[j].Proto {
+			return out[i].Proto < out[j].Proto
+		}
+		if out[i].Local != out[j].Local {
+			return out[i].Local < out[j].Local
+		}
+		if out[i].Remote != out[j].Remote {
+			return out[i].Remote < out[j].Remote
+		}
+		return out[i].State < out[j].State
+	})
+	return out
+}
+
+func sortedUint16Keys[V any](m map[uint16]V) []uint16 {
+	keys := make([]uint16, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	return keys
+}
+
+func sortedTCPKeys(m map[tcpKey]*TCPConn) []tcpKey {
+	keys := make([]tcpKey, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, b := keys[i], keys[j]
+		if cmp := a.localAddr.Compare(b.localAddr); cmp != 0 {
+			return cmp < 0
+		}
+		if a.localPort != b.localPort {
+			return a.localPort < b.localPort
+		}
+		if cmp := a.remoteAddr.Compare(b.remoteAddr); cmp != 0 {
+			return cmp < 0
+		}
+		return a.remotePort < b.remotePort
+	})
+	return keys
 }

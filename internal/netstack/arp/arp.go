@@ -5,6 +5,7 @@ package arp
 import (
 	"fmt"
 	"net/netip"
+	"sort"
 	"time"
 
 	"github.com/yanchenko-igor/virtnet/internal/netstack/ethernet"
@@ -114,4 +115,27 @@ func (c *Cache) Put(ip netip.Addr, mac ethernet.MAC, now time.Duration) {
 // Len returns the number of cached entries.
 func (c *Cache) Len() int {
 	return len(c.entries)
+}
+
+// KeyedEntry is a cached mapping together with its IP address.
+type KeyedEntry struct {
+	IP  netip.Addr
+	MAC ethernet.MAC
+}
+
+// Entries returns the non-expired cache entries, sorted by IP and evaluated
+// at virtual time now. Deterministic: never depends on Go map order.
+func (c *Cache) Entries(now time.Duration) []KeyedEntry {
+	ips := make([]netip.Addr, 0, len(c.entries))
+	for ip := range c.entries {
+		ips = append(ips, ip)
+	}
+	sort.Slice(ips, func(i, j int) bool { return ips[i].Less(ips[j]) })
+	var out []KeyedEntry
+	for _, ip := range ips {
+		if mac, ok := c.Get(ip, now); ok {
+			out = append(out, KeyedEntry{IP: ip, MAC: mac})
+		}
+	}
+	return out
 }

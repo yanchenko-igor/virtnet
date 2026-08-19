@@ -95,6 +95,27 @@ func (s *Stack) Addr() netip.Addr {
 	return s.addr.Addr()
 }
 
+// Prefix returns the stack's configured IPv4 prefix.
+func (s *Stack) Prefix() netip.Prefix {
+	return s.addr
+}
+
+// InterfaceName returns the bound interface's name.
+func (s *Stack) InterfaceName() string {
+	return s.iface.Name
+}
+
+// MAC returns the bound interface's MAC address.
+func (s *Stack) MAC() ethernet.MAC {
+	return s.iface.MAC
+}
+
+// ARPEntries returns the stack's current ARP cache (expired entries removed),
+// sorted by IP.
+func (s *Stack) ARPEntries() []arp.KeyedEntry {
+	return s.arp.Entries(s.clock.Now())
+}
+
 // Routes returns a copy of the routing table entries.
 func (s *Stack) Routes() []route.Route {
 	return s.routes.Routes()
