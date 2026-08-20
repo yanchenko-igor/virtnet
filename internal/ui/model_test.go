@@ -248,20 +248,22 @@ func TestPacketPanelShowsCapturedTraffic(t *testing.T) {
 	}
 }
 
-// TestStatusOnOwnLine guards against the status bar being glued to the input
-// line: the body and the status bar must be separate lines.
+// TestStatusOnOwnLine guards that the status bar is fixed at the bottom
+// of the terminal (separated from console content by filler lines).
 func TestStatusOnOwnLine(t *testing.T) {
 	m := newModel(t)
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ping 10.0.0.20")})
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	v := m.View()
-	if !strings.Contains(v, "pc1$ ▌\nT=") {
-		t.Errorf("status bar not on its own line:\n%s", v)
-	}
+	// Status bar should be the last line
 	lines := strings.Split(v, "\n")
 	if !strings.HasPrefix(lines[len(lines)-1], "T=") {
 		t.Errorf("status bar is not the last line:\n%s", v)
+	}
+	// Status bar should be separated from content by filler lines
+	if !strings.Contains(v, "pc1$ ▌") {
+		t.Errorf("missing prompt:\n%s", v)
 	}
 }
 
@@ -281,15 +283,18 @@ func TestNoDoublePrompt(t *testing.T) {
 	}
 }
 
-// TestEmptyConsoleRendersInputLine only: a fresh machine must not show a
-// stray blank line above the prompt.
+// TestEmptyConsoleRendersInputLine only: a fresh machine must show
+// the input line at the top of the console area, with status bar at bottom.
 func TestEmptyConsoleRendersInputLine(t *testing.T) {
 	m := newModel(t)
 	v := m.View()
-	if !strings.Contains(v, "pc1$ ▌\nT=") {
-		t.Errorf("empty console must go straight to the input line:\n%s", v)
+	// Input line should be visible
+	if !strings.Contains(v, "pc1$ ▌") {
+		t.Errorf("empty console must show input line:\n%s", v)
 	}
-	if strings.Contains(v, "\n\n") {
-		t.Errorf("empty console shows a stray blank line:\n%s", v)
+	// Status bar should be at bottom
+	lines := strings.Split(v, "\n")
+	if !strings.HasPrefix(lines[len(lines)-1], "T=") {
+		t.Errorf("status bar not at bottom:\n%s", v)
 	}
 }

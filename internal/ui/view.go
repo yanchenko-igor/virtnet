@@ -10,7 +10,7 @@ import (
 )
 
 // View implements bubbletea.Model. It renders the tab bar, the active
-// machine's console (or the packet panel), and the status bar.
+// machine's console (or the packet panel), and a fixed status bar at bottom.
 func (m Model) View() string {
 	if m.width == 0 {
 		m.width = 80
@@ -18,21 +18,42 @@ func (m Model) View() string {
 	if m.height == 0 {
 		m.height = 24
 	}
-	var b strings.Builder
-	b.WriteString(m.tabBar())
-	b.WriteByte('\n')
 
-	bodyH := m.height - 2
+	tabBar := m.tabBar()
+	statusBar := m.statusBar()
+
+	// Calculate available height for console body
+	// tabBar (1 line) + statusBar (1 line) + 1 blank line separator
+	usedHeight := 3
+	bodyH := m.height - usedHeight
+	if bodyH < 1 {
+		bodyH = 1
+	}
+
 	body := m.consoleBody(bodyH)
 	if m.showPkt {
 		body = m.packetPanel(bodyH)
 	}
-	// Ensure body ends with newline before status bar
-	if !strings.HasSuffix(body, "\n") {
-		body += "\n"
-	}
+
+	// Build full screen content
+	var b strings.Builder
+	b.WriteString(tabBar)
+	b.WriteByte('\n')
+
+	// Console body
 	b.WriteString(body)
-	b.WriteString(m.statusBar())
+
+	// Fill remaining space to push status bar to bottom
+	allContent := tabBar + "\n" + body
+	renderedLines := strings.Count(allContent, "\n")
+
+	// Fill to push status bar to bottom
+	for renderedLines < m.height-1 {
+		b.WriteByte('\n')
+		renderedLines++
+	}
+
+	b.WriteString(statusBar)
 	return b.String()
 }
 
