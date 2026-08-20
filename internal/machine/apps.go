@@ -501,11 +501,34 @@ func prefixMask(pfx netip.Prefix) string {
 func cmdCurl(m *Machine, args []string) *Process {
 	p := newProcess(m, "curl", args)
 	if len(args) < 1 {
-		p.writeErr("Usage: curl URL\n")
+		p.writeErr("Usage: curl [-i] [-I] [-v] URL\n")
 		p.exit(1)
 		return p
 	}
-	url := args[0]
+
+	// Parse flags
+	includeHeaders := false
+	headOnly := false
+	url := ""
+	for _, arg := range args {
+		switch arg {
+		case "-i", "--include":
+			includeHeaders = true
+		case "-I", "--head":
+			headOnly = true
+		case "-v", "--verbose":
+			// verbose not fully implemented yet
+		default:
+			if strings.HasPrefix(arg, "http://") {
+				url = arg
+			}
+		}
+	}
+	if url == "" {
+		p.writeErr("Usage: curl [-i] [-I] [-v] URL\n")
+		p.exit(1)
+		return p
+	}
 
 	// Simple URL parsing: http://host:port/path
 	if !strings.HasPrefix(url, "http://") {
@@ -545,8 +568,12 @@ func cmdCurl(m *Machine, args []string) *Process {
 		return p
 	}
 
-	// Send HTTP GET request
-	request := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host)
+	// Send HTTP request
+	method := "GET"
+	if headOnly {
+		method = "HEAD"
+	}
+	request := fmt.Sprintf("%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", method, path, host)
 	if _, err := conn.Write([]byte(request)); err != nil {
 		p.writeErr(fmt.Sprintf("curl: write failed: %v\n", err))
 		_ = conn.Close()
@@ -561,7 +588,11 @@ func cmdCurl(m *Machine, args []string) *Process {
 		response := string(buf[:n])
 		// Extract body from HTTP response (skip headers)
 		if idx := strings.Index(response, "\r\n\r\n"); idx >= 0 {
+			headers := response[:idx+4]
 			body := response[idx+4:]
+			if includeHeaders {
+				p.writeOut(headers)
+			}
 			p.writeOut(body)
 		} else {
 			p.writeOut(response)
