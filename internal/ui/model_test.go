@@ -34,6 +34,21 @@ func TestTypingAccumulates(t *testing.T) {
 	}
 }
 
+// TestTypingSpace keeps arguments intact: Bubbletea reports space as
+// KeySpace (with a rune payload), not KeyRunes.
+func TestTypingSpace(t *testing.T) {
+	m := newModel(t)
+	for _, tt := range []tea.KeyMsg{
+		{Type: tea.KeySpace, Runes: []rune{' '}},
+		{Type: tea.KeyRunes, Runes: []rune("ping 10.0.0.1")},
+	} {
+		m = update(t, m, tt)
+	}
+	if got := m.Input(); got != " ping 10.0.0.1" {
+		t.Errorf("input = %q, want %q", got, " ping 10.0.0.1")
+	}
+}
+
 func TestBackspace(t *testing.T) {
 	m := newModel(t)
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b', 'c'}})

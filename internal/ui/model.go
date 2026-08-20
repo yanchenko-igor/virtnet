@@ -110,7 +110,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Next()
 		case tea.KeyShiftTab:
 			m.Prev()
-		case tea.KeyRunes:
+		default:
+			// Printable characters arrive either as KeyRunes or as a named
+			// key carrying runes (space is KeySpace with Runes [' ']).
 			for _, r := range msg.Runes {
 				m.Rune(r)
 			}
