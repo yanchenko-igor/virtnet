@@ -19,6 +19,7 @@ import (
 	"github.com/yanchenko-igor/virtnet/internal/netstack/ipv4"
 	"github.com/yanchenko-igor/virtnet/internal/netstack/tcp"
 	"github.com/yanchenko-igor/virtnet/internal/netstack/udp"
+	"github.com/yanchenko-igor/virtnet/internal/services"
 )
 
 const (
@@ -532,6 +533,26 @@ func (s *Stack) handleUDP(pkt ipv4.Packet) error {
 	if err != nil {
 		return nil
 	}
+
+	key := services.ServiceKey{Port: d.DstPort, Proto: uint8(ipv4.ProtoUDP)}
+	if svc, ok := s.services[key]; ok {
+		ctx := services.ServiceContext{
+			Machine: nil,
+			Stack:   s,
+			SrcAddr: pkt.Src,
+			SrcPort: d.SrcPort,
+			DstAddr: pkt.Dst,
+			DstPort: d.DstPort,
+			Proto:   uint8(ipv4.ProtoUDP),
+			Clock:   s.clock,
+		}
+		resp, err := svc.HandleRequest(ctx, services.ServiceRequest{Payload: d.Payload})
+		if err == nil && len(resp) > 0 {
+			_ = s.sendIP(pkt.Src, ipv4.ProtoUDP, resp)
+		}
+		return err
+	}
+
 	sock := s.udpSockets[d.DstPort]
 	if sock == nil || sock.closed {
 		return nil
@@ -548,8 +569,37 @@ func (s *Stack) handleTCP(pkt ipv4.Packet) error {
 	if err != nil {
 		return nil
 	}
-	key := tcpKey{localAddr: pkt.Dst, localPort: seg.DstPort, remoteAddr: pkt.Src, remotePort: seg.SrcPort}
-	if c := s.tcpConns[key]; c != nil {
+
+	key := services.ServiceKey{Port: seg.DstPort, Proto: uint8(ipv4.ProtoTCP)}
+	if svc, ok := s.services[key]; ok {
+		ctx := services.ServiceContext{
+			Machine: nil,
+			Stack:   s,
+			SrcAddr: pkt.Src,
+			SrcPort: seg.SrcPort,
+			DstAddr: pkt.Dst,
+			DstPort: seg.DstPort,
+			Proto:   uint8(ipv4.ProtoTCP),
+			Clock:   s.clock,
+		}
+		resp, err := svc.HandleRequest(ctx, services.ServiceRequest{Payload: seg.Payload})
+		if err == nil && len(resp) > 0 {
+			rstSeg := &tcp.Segment{
+				SrcPort: seg.DstPort,
+				DstPort: seg.SrcPort,
+				Seq:     seg.Ack,
+				Ack:     seg.Seq + uint32(len(seg.Payload)),
+				Flags:   tcp.FlagACK | tcp.FlagPSH,
+				Window:  65535,
+				Payload: resp,
+			}
+			_ = s.sendSegment(pkt.Src, rstSeg)
+		}
+		return err
+	}
+
+	tcpKey := tcpKey{localAddr: pkt.Dst, localPort: seg.DstPort, remoteAddr: pkt.Src, remotePort: seg.SrcPort}
+	if c := s.tcpConns[tcpKey]; c != nil {
 		c.tick()
 		c.handleSegment(pkt.Src, seg)
 		return nil

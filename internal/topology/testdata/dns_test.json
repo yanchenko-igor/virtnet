@@ -1,0 +1,43 @@
+{
+  "machines": [
+    {
+      "id": "dns1",
+      "host": "dns1",
+      "ip": "10.0.0.53/24",
+      "mac": "02:00:00:00:00:53",
+      "services": [
+        {
+          "type": "dns",
+          "port": 53,
+          "config": {
+            "zones": {
+              "example.com": {
+                "ttl": 3600,
+                "records": [
+                  {"type": "A", "name": "@", "value": "10.0.0.10"},
+                  {"type": "A", "name": "www", "value": "10.0.0.10"},
+                  {"type": "MX", "name": "@", "value": "10 mail.example.com"}
+                ]
+              }
+            },
+            "recursive": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "pc1",
+      "host": "pc1",
+      "ip": "10.0.0.10/24",
+      "mac": "02:00:00:00:00:01",
+      "gateway": "10.0.0.1"
+    }
+  ],
+  "switches": [
+    { "id": "sw1" }
+  ],
+  "links": [
+    { "a": "machine:dns1:eth0", "b": "switch:sw1:p1", "delay_ms": 10 },
+    { "a": "machine:pc1:eth0", "b": "switch:sw1:p2", "delay_ms": 10 }
+  ]
+}

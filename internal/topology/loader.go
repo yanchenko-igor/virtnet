@@ -90,6 +90,12 @@ func (t *Topology) BuildLab() (*lab.Lab, *fabric.Switch, *router.Router, error) 
 				return nil, nil, nil, fmt.Errorf("machine %s gateway: %w", m.ID, err)
 			}
 		}
+		// Register services
+		for _, svcDef := range m.Services {
+			if err := mach.RegisterService(svcDef.Type, svcDef.Config); err != nil {
+				return nil, nil, nil, fmt.Errorf("machine %s service %s: %w", m.ID, svcDef.Type, err)
+			}
+		}
 		machines[m.ID] = mach
 		machineInterfaces[fmt.Sprintf("machine:%s:eth0", m.ID)] = iface
 	}

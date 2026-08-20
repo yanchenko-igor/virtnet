@@ -61,11 +61,18 @@ func (d Delay) MarshalJSON() ([]byte, error) {
 
 // MachineDef defines a virtual machine.
 type MachineDef struct {
-	ID      string  `json:"id"`
-	Host    string  `json:"host"`
-	IP      Prefix  `json:"ip"`
-	MAC     MACAddr `json:"mac"`
-	Gateway string  `json:"gateway,omitempty"` // IP of default gateway
+	ID       string       `json:"id"`
+	Host     string       `json:"host"`
+	IP       Prefix       `json:"ip"`
+	MAC      MACAddr      `json:"mac"`
+	Gateway  string       `json:"gateway,omitempty"` // IP of default gateway
+	Services []ServiceDef `json:"services,omitempty"`
+}
+
+type ServiceDef struct {
+	Type   string                 `json:"type"` // "dns", "http", "smtp", "dhcp"
+	Port   int                    `json:"port"` // listen port
+	Config map[string]interface{} `json:"config,omitempty"`
 }
 
 // SwitchDef defines a virtual switch.

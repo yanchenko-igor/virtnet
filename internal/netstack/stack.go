@@ -15,6 +15,7 @@ import (
 	"github.com/yanchenko-igor/virtnet/internal/netstack/icmp"
 	"github.com/yanchenko-igor/virtnet/internal/netstack/ipv4"
 	"github.com/yanchenko-igor/virtnet/internal/netstack/route"
+	"github.com/yanchenko-igor/virtnet/internal/services"
 )
 
 // DefaultARPTimeout is how long ARP cache entries live, in virtual time.
@@ -56,6 +57,7 @@ type Stack struct {
 	tcpConns     map[tcpKey]*TCPConn
 	nextPort     uint16
 	nextISN      uint32
+	services     map[services.ServiceKey]services.Service
 }
 
 // New creates a stack bound to iface, attaches it as the interface's frame
@@ -82,6 +84,7 @@ func New(c *clock.VirtualClock, iface *fabric.Interface, cfg Config) (*Stack, er
 		tcpListeners: make(map[uint16]*TCPConn),
 		tcpConns:     make(map[tcpKey]*TCPConn),
 		nextPort:     firstEphemeral,
+		services:     make(map[services.ServiceKey]services.Service),
 	}
 	if err := s.routes.Add(route.Route{Prefix: cfg.Addr.Masked(), Interface: iface.Name}); err != nil {
 		return nil, err
@@ -149,6 +152,12 @@ func (s *Stack) AddRoute(pfx netip.Prefix, nextHop netip.Addr, iface string, met
 		return fmt.Errorf("netstack: invalid route next hop %v", nextHop)
 	}
 	return s.routes.Add(route.Route{Prefix: pfx, NextHop: nextHop, Interface: iface, Metric: metric})
+}
+
+// RegisterService registers a service to handle incoming packets on a port.
+func (s *Stack) RegisterService(port uint16, proto ipv4.Protocol, svc services.Service) {
+	key := services.ServiceKey{Port: port, Proto: uint8(proto)}
+	s.services[key] = svc
 }
 
 // Ping sends an ICMP echo request to dst and returns the reply synchronously.

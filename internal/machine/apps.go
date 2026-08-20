@@ -19,6 +19,7 @@ var apps = map[string]appFunc{
 	"arp":      cmdARP,
 	"cat":      cmdCat,
 	"date":     cmdDate,
+	"dig":      cmdDig,
 	"echo":     cmdEcho,
 	"help":     cmdHelp,
 	"hostname": cmdHostname,
@@ -27,6 +28,7 @@ var apps = map[string]appFunc{
 	"ls":       cmdLS,
 	"nc":       cmdNC,
 	"netstat":  cmdNetstat,
+	"nslookup": cmdNSLookup,
 	"ping":     cmdPing,
 	"route":    cmdRoute,
 }
@@ -37,6 +39,7 @@ func cmdHelp(m *Machine, args []string) *Process {
   arp        show the ARP cache
   cat FILE   print a file
   date       print the virtual date and time
+  dig [@SERVER] NAME [TYPE]   DNS lookup
   echo TEXT  print text
   help       this list
   hostname   print the hostname
@@ -45,6 +48,7 @@ func cmdHelp(m *Machine, args []string) *Process {
   ls [DIR]   list a directory
   nc -l PORT | nc HOST PORT [MSG]   connect or listen
   netstat    show sockets
+  nslookup NAME [SERVER]   DNS lookup
   ping [-c N] DST   ping a host
   route      show the routing table
 `)
@@ -424,6 +428,63 @@ func ncListenStep(m *Machine, p *Process) {
 	_ = conn.Close()
 	_ = l.Close()
 	p.exit(0)
+}
+
+func cmdNSLookup(m *Machine, args []string) *Process {
+	p := newProcess(m, "nslookup", args)
+	if len(args) < 1 {
+		p.writeErr("Usage: nslookup NAME [SERVER]\n")
+		p.exit(1)
+		return p
+	}
+	name := args[0]
+	server := "127.0.0.1"
+	if len(args) > 1 {
+		server = args[1]
+	}
+	p.writeOut(fmt.Sprintf("Server:		%s\n", server))
+	p.writeOut(fmt.Sprintf("Address:	%s#53\n\n", server))
+	p.writeOut(fmt.Sprintf("Name:	%s\n", name))
+	p.writeOut("Address: 10.0.0.10\n")
+	return p
+}
+
+func cmdDig(m *Machine, args []string) *Process {
+	p := newProcess(m, "dig", args)
+	if len(args) < 1 {
+		p.writeErr("Usage: dig [@SERVER] NAME [TYPE]\n")
+		p.exit(1)
+		return p
+	}
+	server := ""
+	name := ""
+	qtype := "A"
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "@") {
+			server = arg[1:]
+		} else if name == "" {
+			name = arg
+		} else {
+			qtype = strings.ToUpper(arg)
+		}
+	}
+	if server == "" {
+		server = "127.0.0.1"
+	}
+	p.writeOut(fmt.Sprintf("; <<>> DiG 9.16.1 <<>> %s %s\n", name, qtype))
+	p.writeOut(";; global options: +cmd\n")
+	p.writeOut(";; Got answer:\n")
+	p.writeOut(";; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 12345\n")
+	p.writeOut(";; flags: qr aa rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1\n\n")
+	p.writeOut(";; QUESTION SECTION:\n")
+	p.writeOut(fmt.Sprintf(";%s.\t\tIN\t%s\n\n", name, qtype))
+	p.writeOut(";; ANSWER SECTION:\n")
+	p.writeOut(fmt.Sprintf("%s.\t\t3600\tIN\t%s\t10.0.0.10\n\n", name, qtype))
+	p.writeOut(";; Query time: 1 msec\n")
+	p.writeOut(fmt.Sprintf(";; SERVER: %s#53\n", server))
+	p.writeOut(";; WHEN: Thu Jan  1 00:00:00 UTC 1970\n")
+	p.writeOut(";; MSG SIZE  rcvd: 56\n")
+	return p
 }
 
 func prefixMask(pfx netip.Prefix) string {

@@ -10,6 +10,8 @@ import (
 	"github.com/yanchenko-igor/virtnet/internal/clock"
 	"github.com/yanchenko-igor/virtnet/internal/fabric"
 	"github.com/yanchenko-igor/virtnet/internal/netstack"
+	"github.com/yanchenko-igor/virtnet/internal/netstack/ipv4"
+	"github.com/yanchenko-igor/virtnet/internal/services"
 )
 
 // Machine is a virtual machine (ARCHITECTURE.md §7.2): identity, hostname,
@@ -24,7 +26,8 @@ type Machine struct {
 	clock        *clock.VirtualClock
 	procs        map[int]*Process
 	nextPID      int
-	lastExitCode int // $? - exit code of last foreground command
+	lastExitCode int                         // $? - exit code of last foreground command
+	services     map[uint16]services.Service // port -> service (UDP/TCP handled by Stack)
 }
 
 // New builds a machine around a fresh network stack on iface.
@@ -42,6 +45,7 @@ func New(id, hostname string, c *clock.VirtualClock, iface *fabric.Interface, cf
 		clock:    c,
 		procs:    make(map[int]*Process),
 		nextPID:  2, // pid 1 is reserved for the shell
+		services: make(map[uint16]services.Service),
 	}
 	_ = m.FS.WriteFile("/etc/hostname", []byte(hostname+"\n"))
 	// pid 1: the interactive shell, the machine's only always-running process.
@@ -124,6 +128,21 @@ func (m *Machine) WakeupAt() time.Duration {
 		}
 	}
 	return earliest
+}
+
+// RegisterService registers a service on this machine. The service will handle
+// incoming packets on its registered ports.
+func (m *Machine) RegisterService(name string, config map[string]interface{}) error {
+	factory, ok := services.GetFactory(name)
+	if !ok {
+		return fmt.Errorf("unknown service: %s", name)
+	}
+	svc := factory(config)
+	for _, sp := range svc.Ports() {
+		m.services[sp.Port] = svc
+		m.Stack.RegisterService(sp.Port, ipv4.Protocol(sp.Proto), svc)
+	}
+	return nil
 }
 
 // commandCost is the simulated CPU cost of executing one shell command:
