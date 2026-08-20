@@ -126,6 +126,19 @@ func (s *Stack) EnableForwarding() {
 	s.forward = true
 }
 
+// AddRoute installs a static route (gateways, phase 6). nextHop may be a zero
+// address for directly-connected networks. Routes are matched by
+// longest-prefix, then lowest metric, then insertion order.
+func (s *Stack) AddRoute(pfx netip.Prefix, nextHop netip.Addr, iface string, metric int) error {
+	if !pfx.IsValid() || !pfx.Addr().Is4() {
+		return fmt.Errorf("netstack: invalid route prefix %v", pfx)
+	}
+	if nextHop.IsValid() && !nextHop.Is4() {
+		return fmt.Errorf("netstack: invalid route next hop %v", nextHop)
+	}
+	return s.routes.Add(route.Route{Prefix: pfx, NextHop: nextHop, Interface: iface, Metric: metric})
+}
+
 // Ping sends an ICMP echo request to dst and returns the reply synchronously.
 // The entire exchange — including ARP resolution — completes within this call.
 func (s *Stack) Ping(dst netip.Addr) (PingResult, error) {
