@@ -228,6 +228,20 @@ func (m *Machine) CopyForegroundOutput() {
 	m.reap()
 }
 
+// HasForeground reports whether this machine has any foreground
+// processes (waiting or running) that need continued stepping.
+func (m *Machine) HasForeground() bool {
+	for _, p := range m.procs {
+		if p == nil || p.Pid == 1 || p.step == nil || !p.Foreground {
+			continue
+		}
+		if p.State == Waiting || p.State == Running {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Machine) shell() *Process {
 	return m.procs[1]
 }

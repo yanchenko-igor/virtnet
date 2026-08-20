@@ -8,10 +8,15 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/charmbracelet/bubbletea"
 	"github.com/yanchenko-igor/virtnet/internal/lab"
 	"github.com/yanchenko-igor/virtnet/internal/machine"
 )
+
+// tickMsg triggers continuous foreground stepping when processes are running.
+type tickMsg time.Time
 
 // pktPanelLimit is how many capture records the packet panel renders.
 const pktPanelLimit = 12
@@ -132,13 +137,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Rune(r)
 			}
 		}
+	case tickMsg:
+		// Tick: step foreground processes continuously.
 	}
 	// Step foreground processes (e.g. incremental ping) once per Update
 	// cycle so output appears incrementally. Copy their stdout/stderr to
 	// the machine console so it renders.
+	hasForeground := false
 	for _, mach := range m.lab.Machines {
 		mach.StepForeground()
 		mach.CopyForegroundOutput()
+		if mach.HasForeground() {
+			hasForeground = true
+		}
+	}
+	if hasForeground {
+		return m, tea.Tick(16*time.Millisecond, func(t time.Time) tea.Msg {
+			return tickMsg(t)
+		})
 	}
 	return m, nil
 }
