@@ -65,6 +65,7 @@ func (m *Model) Prev() {
 // Submit runs the buffered command line on the active machine. Foreground
 // processes (like ping) are started but NOT driven to completion; they will
 // be stepped by Update via StepForeground so output appears incrementally.
+// The final prompt is written when the process exits (in CopyForegroundOutput).
 func (m *Model) Submit() {
 	line := string(m.input)
 	m.input = nil
@@ -85,7 +86,7 @@ func (m *Model) Submit() {
 			p.Stderr.Reset()
 		}
 	}
-	mach.Console.WritePrompt()
+	// Do NOT write final prompt here; it's written when foreground process exits
 }
 
 // Rune appends a character to the command line.

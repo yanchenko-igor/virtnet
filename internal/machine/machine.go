@@ -192,10 +192,27 @@ func (m *Machine) StepForeground() bool {
 }
 
 // CopyForegroundOutput copies stdout/stderr from foreground waiting
-// processes to the machine's console for rendering.
+// processes to the machine's console for rendering. If a foreground
+// process has exited, writes the shell prompt.
 func (m *Machine) CopyForegroundOutput() {
 	for _, p := range m.procs {
-		if p == nil || p.Pid == 1 || p.State != Waiting || p.step == nil || !p.Foreground {
+		if p == nil || p.Pid == 1 || p.step == nil || !p.Foreground {
+			continue
+		}
+		if p.State == Exited {
+			// Process finished: copy any remaining output, then write prompt.
+			if s := p.Stdout.String(); s != "" {
+				m.Console.Write(s)
+				p.Stdout.Reset()
+			}
+			if s := p.Stderr.String(); s != "" {
+				m.Console.Write(s)
+				p.Stderr.Reset()
+			}
+			m.Console.WritePrompt()
+			continue
+		}
+		if p.State != Waiting {
 			continue
 		}
 		if s := p.Stdout.String(); s != "" {
