@@ -109,10 +109,30 @@ func formatRecord(l *lab.Lab, r capture.Record) string {
 }
 
 // statusBar renders the clock, machine, and key hints.
+// Adapts to terminal width to avoid wrapping.
 func (m Model) statusBar() string {
 	mach := m.Active()
-	return fmt.Sprintf("T=%v | tab %d/%d %s | frames %d | Tab switch · Enter run · ctrl+p packets · ctrl+c quit",
-		m.lab.Clock.Now(),
-		m.active+1, len(m.lab.Machines), mach.Hostname,
-		m.lab.Capture.Len())
+	clockStr := fmt.Sprintf("T=%v", m.lab.Clock.Now())
+	tabStr := fmt.Sprintf("tab %d/%d %s", m.active+1, len(m.lab.Machines), mach.Hostname)
+	framesStr := fmt.Sprintf("frames %d", m.lab.Capture.Len())
+
+	// Calculate available space for hints
+	used := len(clockStr) + len(tabStr) + len(framesStr) + 6 // separators
+	avail := m.width - used
+
+	var hints string
+	if avail >= 50 {
+		hints = "Tab switch · Enter run · ctrl+p packets · ctrl+c quit"
+	} else if avail >= 30 {
+		hints = "Tab · Enter · ctrl+p · ctrl+c quit"
+	} else if avail >= 20 {
+		hints = "Tab · Enter · ctrl+c"
+	} else {
+		hints = ""
+	}
+
+	if hints != "" {
+		return fmt.Sprintf("%s | %s | %s | %s", clockStr, tabStr, framesStr, hints)
+	}
+	return fmt.Sprintf("%s | %s | %s", clockStr, tabStr, framesStr)
 }
