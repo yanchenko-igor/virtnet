@@ -62,16 +62,28 @@ func (m *Model) Prev() {
 	m.active = (m.active - 1 + len(m.lab.Machines)) % len(m.lab.Machines)
 }
 
-// Submit runs the buffered command line on the active machine and then runs
-// the world until no machine has pending work.
+// Submit runs the buffered command line on the active machine. Foreground
+// processes (like ping) are started but NOT driven to completion; they will
+// be stepped by Update via StepForeground so output appears incrementally.
 func (m *Model) Submit() {
 	line := string(m.input)
 	m.input = nil
 	if line == "" {
 		return
 	}
-	m.Active().HandleInput(line)
-	m.lab.RunQuiescent()
+	mach := m.Active()
+	mach.Console.WritePrompt()
+	mach.Console.Write(line + "\n")
+	p := mach.Execute(line)
+	if p != nil {
+		if s := p.Stdout.String(); s != "" {
+			mach.Console.Write(s)
+		}
+		if s := p.Stderr.String(); s != "" {
+			mach.Console.Write(s)
+		}
+	}
+	mach.Console.WritePrompt()
 }
 
 // Rune appends a character to the command line.
@@ -117,6 +129,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Rune(r)
 			}
 		}
+	}
+	// Step foreground processes (e.g. incremental ping) once per Update
+	// cycle so output appears incrementally. Copy their stdout/stderr to
+	// the machine console so it renders.
+	for _, mach := range m.lab.Machines {
+		mach.StepForeground()
+		mach.CopyForegroundOutput()
 	}
 	return m, nil
 }

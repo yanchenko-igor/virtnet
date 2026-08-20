@@ -76,16 +76,23 @@ func (m *Machine) RunCommand(line string) (string, error) {
 	if out == nil {
 		return "", nil
 	}
+	if out.State == Waiting && out.Foreground {
+		m.RunForegroundToCompletion(out)
+	}
 	return out.Stdout.String(), cmdErr(out)
 }
 
 // HandleInput feeds a command line to the console: it echoes the prompt and
-// command, then executes and appends stdout/stderr to the transcript.
+// command, then executes and drives foreground processes to completion,
+// appending stdout/stderr to the transcript.
 func (m *Machine) HandleInput(line string) {
 	m.Console.WritePrompt()
 	m.Console.Write(line + "\n")
 	p := m.execute(line)
 	if p != nil {
+		if p.State == Waiting && p.Foreground {
+			m.RunForegroundToCompletion(p)
+		}
 		if s := p.Stdout.String(); s != "" {
 			m.Console.Write(s)
 		}
@@ -146,22 +153,60 @@ func (m *Machine) execute(line string) *Process {
 	p := app(m, argv[1:])
 	if p.State == Waiting {
 		m.procs[p.Pid] = p
-		if p.Foreground {
-			m.driveToCompletion(p)
-		}
 	}
 	return p
 }
 
-// driveToCompletion steps a foreground waiting process until it exits.
-// Used by execute() for commands that yield (like incremental ping) but
-// should appear synchronous to callers (RunCommand, HandleInput).
-func (m *Machine) driveToCompletion(p *Process) {
+// Execute runs a command line without driving foreground processes to
+// completion. Used by the UI for incremental rendering. Returns the
+// process (which may be Waiting with a step hook).
+func (m *Machine) Execute(line string) *Process {
+	return m.execute(line)
+}
+
+// RunForegroundToCompletion drives a foreground waiting process to exit.
+// Used by RunCommand for sync behavior (tests, CLI).
+func (m *Machine) RunForegroundToCompletion(p *Process) {
 	for p.State == Waiting && p.step != nil {
 		p.State = Running
 		p.step(m, p)
 	}
 	m.reap()
+}
+
+// StepForeground steps all foreground waiting processes once.
+// Returns true if any foreground process was stepped (UI can re-render).
+func (m *Machine) StepForeground() bool {
+	stepped := false
+	for _, pid := range sortedPID(m.procs) {
+		p := m.procs[pid]
+		if p == nil || p == m.shell() || p.State != Waiting || p.step == nil || !p.Foreground {
+			continue
+		}
+		p.State = Running
+		p.step(m, p)
+		stepped = true
+	}
+	m.reap()
+	return stepped
+}
+
+// CopyForegroundOutput copies stdout/stderr from foreground waiting
+// processes to the machine's console for rendering.
+func (m *Machine) CopyForegroundOutput() {
+	for _, p := range m.procs {
+		if p == nil || p.Pid == 1 || p.State != Waiting || p.step == nil || !p.Foreground {
+			continue
+		}
+		if s := p.Stdout.String(); s != "" {
+			m.Console.Write(s)
+			p.Stdout.Reset()
+		}
+		if s := p.Stderr.String(); s != "" {
+			m.Console.Write(s)
+			p.Stderr.Reset()
+		}
+	}
 }
 
 func (m *Machine) shell() *Process {
