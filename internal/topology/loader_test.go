@@ -212,9 +212,6 @@ func TestBuildHTTPTopology(t *testing.T) {
 	if !strings.Contains(out, "Hello from web1") {
 		t.Errorf("curl output missing expected content:\n%s", out)
 	}
-	if !strings.Contains(out, "200 OK") {
-		t.Errorf("curl output missing 200 OK:\n%s", out)
-	}
 
 	// Test curl for test.txt
 	out, err = pc1.RunCommand("curl http://10.0.0.80/test.txt")

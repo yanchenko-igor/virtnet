@@ -558,7 +558,14 @@ func cmdCurl(m *Machine, args []string) *Process {
 	buf := make([]byte, 4096)
 	n, err := conn.Read(buf)
 	if n > 0 {
-		p.writeOut(string(buf[:n]))
+		response := string(buf[:n])
+		// Extract body from HTTP response (skip headers)
+		if idx := strings.Index(response, "\r\n\r\n"); idx >= 0 {
+			body := response[idx+4:]
+			p.writeOut(body)
+		} else {
+			p.writeOut(response)
+		}
 	}
 	_ = err
 	_ = conn.Close()
