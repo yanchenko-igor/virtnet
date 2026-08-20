@@ -107,8 +107,8 @@ func TestShellPing(t *testing.T) {
 	if !strings.Contains(out, "1 packets transmitted, 1 received, 0.0% packet loss") {
 		t.Errorf("ping stats wrong:\n%s", out)
 	}
-	if got := c.Now(); got != 40*time.Millisecond {
-		t.Errorf("clock = %v, want 40ms", got)
+	if got := c.Now(); got != 41*time.Millisecond {
+		t.Errorf("clock = %v, want 41ms (1ms command cost + 40ms network)", got)
 	}
 }
 
@@ -137,9 +137,10 @@ func TestShellPingCount(t *testing.T) {
 			t.Errorf("missing %s:\n%s", seq, out)
 		}
 	}
-	// First packet cold (40ms: ARP 20 + echo 10 + reply 10), then warm 20ms.
-	if got := c.Now(); got != 80*time.Millisecond {
-		t.Errorf("clock = %v, want 80ms (40 + 20 + 20)", got)
+	// First packet cold (40ms: ARP 20 + echo 10 + reply 10), then warm 20ms,
+	// plus 1ms command cost for the whole ping.
+	if got := c.Now(); got != 81*time.Millisecond {
+		t.Errorf("clock = %v, want 81ms (1ms command cost + 40 + 20 + 20)", got)
 	}
 }
 
@@ -225,10 +226,11 @@ func TestNCExchange(t *testing.T) {
 	if got := len(pc2.Processes()); got != 1 {
 		t.Errorf("pc2 processes = %d, want 1 after reap", got)
 	}
-	// Client: handshake 50 + data-ACK 20 + FIN 10 + FIN-ACK 10 = 90ms; the
-	// server drains on Step, then its own close adds FIN 10 + ACK 10 = 110ms.
-	if got := c.Now(); got != 110*time.Millisecond {
-		t.Errorf("clock = %v, want 110ms", got)
+	// Client: 1ms command cost + handshake 50 + data-ACK 20 + FIN 10 +
+	// FIN-ACK 10 = 91ms; the server drains on Step, then its own close adds
+	// FIN 10 + ACK 10 = 112ms total.
+	if got := c.Now(); got != 112*time.Millisecond {
+		t.Errorf("clock = %v, want 112ms", got)
 	}
 }
 
@@ -244,7 +246,8 @@ func TestShellDate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("date: %v", err)
 	}
-	if out != "Thu Jan 15 08:00:00.000 UTC 2026 (t=0s)\n" {
+	// Executing date costs 1ms, so it prints the time after its own run.
+	if out != "Thu Jan 15 08:00:00.001 UTC 2026 (t=1ms)\n" {
 		t.Errorf("date at t=0 = %q", out)
 	}
 
@@ -252,7 +255,7 @@ func TestShellDate(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _ = pc1.RunCommand("date")
-	if out != "Thu Jan 15 08:00:00.010 UTC 2026 (t=10.25ms)\n" {
+	if out != "Thu Jan 15 08:00:00.012 UTC 2026 (t=12.25ms)\n" {
 		t.Errorf("date after advance = %q", out)
 	}
 }

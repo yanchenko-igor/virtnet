@@ -53,7 +53,7 @@ func TestRunQuiescent(t *testing.T) {
 
 // Test15ClockTotals locks the exact virtual-clock totals for the §15 topology.
 // These match the acceptance suite: the flood-leg semantics of a broadcast ARP
-// make the cold pings 90/130/130ms.
+// make the cold pings 90/130/130ms. Each ping command also costs 1ms.
 func Test15ClockTotals(t *testing.T) {
 	t1, srcs1 := runPings(t)
 	t2, srcs2 := runPings(t)
@@ -69,7 +69,7 @@ func Test15ClockTotals(t *testing.T) {
 			t.Fatalf("capture ARP senders = %v / %v, want %v", srcs1, srcs2, want)
 		}
 	}
-	if t1 != 280*time.Millisecond {
-		t.Errorf("final clock = %v, want 280ms (90 + 130 + 60)", t1)
+	if t1 != 283*time.Millisecond {
+		t.Errorf("final clock = %v, want 283ms (90+1 + 130+1 + 60+1)", t1)
 	}
 }

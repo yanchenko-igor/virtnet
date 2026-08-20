@@ -126,8 +126,9 @@ func TestSameSubnetPing(t *testing.T) {
 	// Cold 90ms: PC1's ARP for PC2 floods both switch ports; PC2's reply
 	// (40ms) plus ICMP round trip (40ms) plus the flood's p3 leg (10ms)
 	// that the ARP request Send waits on. Warm 40ms: no ARP.
-	assertPing(t, tp.c, pc1, "10.0.0.20", "90.000", 90*time.Millisecond)
-	assertPing(t, tp.c, pc1, "10.0.0.20", "40.000", 130*time.Millisecond)
+	// Each ping command costs 1ms.
+	assertPing(t, tp.c, pc1, "10.0.0.20", "90.000", 91*time.Millisecond)
+	assertPing(t, tp.c, pc1, "10.0.0.20", "40.000", 132*time.Millisecond)
 }
 
 func TestCrossSubnetPing(t *testing.T) {
@@ -135,17 +136,18 @@ func TestCrossSubnetPing(t *testing.T) {
 
 	// Cold 130ms: gateway ARP 50 + ICMP 80 across R1 (req 20 + R1→PC3 20 +
 	// reply 20 + R1→PC1 20) with R1's eth1 ARP 20 in between. Warm 60ms:
-	// no ARP at all.
-	assertPing(t, tp.c, pc1, "10.0.1.10", "130.000", 130*time.Millisecond)
-	assertPing(t, tp.c, pc1, "10.0.1.10", "60.000", 190*time.Millisecond)
+	// no ARP at all. Each ping command costs 1ms.
+	assertPing(t, tp.c, pc1, "10.0.1.10", "130.000", 131*time.Millisecond)
+	assertPing(t, tp.c, pc1, "10.0.1.10", "60.000", 192*time.Millisecond)
 }
 
 func TestRouterSelfPing(t *testing.T) {
 	tp, pc1, _, _ := setupTopology(t)
 
 	// Cold 90ms: gateway ARP 50 + ICMP to the router (40ms round trip).
-	assertPing(t, tp.c, pc1, "10.0.0.1", "90.000", 90*time.Millisecond)
-	assertPing(t, tp.c, pc1, "10.0.0.1", "40.000", 130*time.Millisecond)
+	// Each ping command costs 1ms.
+	assertPing(t, tp.c, pc1, "10.0.0.1", "90.000", 91*time.Millisecond)
+	assertPing(t, tp.c, pc1, "10.0.0.1", "40.000", 132*time.Millisecond)
 }
 
 func TestReversePing(t *testing.T) {
@@ -154,8 +156,9 @@ func TestReversePing(t *testing.T) {
 	// Cold 130ms: PC3↔R1 ARP 20 + ICMP req 10 + R1's eth0 ARP for PC1 50
 	// (request floods PC2 first; PC1's reply + the p2 leg = 40ms, plus the
 	// p1 delivery) + req 20 + reply 20 + forward 10. Warm 60ms: no ARP.
-	assertPing(t, tp.c, pc3, "10.0.0.10", "130.000", 130*time.Millisecond)
-	assertPing(t, tp.c, pc3, "10.0.0.10", "60.000", 190*time.Millisecond)
+	// Each ping command costs 1ms.
+	assertPing(t, tp.c, pc3, "10.0.0.10", "130.000", 131*time.Millisecond)
+	assertPing(t, tp.c, pc3, "10.0.0.10", "60.000", 192*time.Millisecond)
 }
 
 func TestPingUnreachableHost(t *testing.T) {

@@ -174,13 +174,13 @@ func TestNew15AtDateCommand(t *testing.T) {
 
 	pc1 := l.Machine("pc1")
 	pc1.HandleInput("date")
-	if tr := pc1.Console.Transcript(); !strings.Contains(tr, "Thu Jan 15 08:00:00.000 UTC 2026 (t=0s)\n") {
+	if tr := pc1.Console.Transcript(); !strings.Contains(tr, "Thu Jan 15 08:00:00.001 UTC 2026 (t=1ms)\n") {
 		t.Fatalf("date at start = %q", tr)
 	}
 
-	pc1.HandleInput("ping 10.0.0.20") // advances the clock by 90ms (cold)
+	pc1.HandleInput("ping 10.0.0.20") // advances the clock by 90ms (cold) + 1ms cmd
 	pc1.HandleInput("date")
-	if tr := pc1.Console.Transcript(); !strings.Contains(tr, "Thu Jan 15 08:00:00.090 UTC 2026 (t=90ms)\n") {
+	if tr := pc1.Console.Transcript(); !strings.Contains(tr, "Thu Jan 15 08:00:00.093 UTC 2026 (t=93ms)\n") {
 		t.Fatalf("date after ping = %q", tr)
 	}
 
@@ -194,7 +194,7 @@ func TestNew15AtDateCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("date after restore: %v", err)
 	}
-	if out != "Thu Jan 15 08:00:00.090 UTC 2026 (t=90ms)\n" {
+	if out != "Thu Jan 15 08:00:00.094 UTC 2026 (t=94ms)\n" {
 		t.Fatalf("date after restore = %q", out)
 	}
 }
@@ -209,7 +209,7 @@ func TestDefaultLabDateAtEpoch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("date: %v", err)
 	}
-	if out != "Thu Jan  1 00:00:00.000 UTC 1970 (t=0s)\n" {
+	if out != "Thu Jan  1 00:00:00.001 UTC 1970 (t=1ms)\n" {
 		t.Fatalf("default date = %q", out)
 	}
 }

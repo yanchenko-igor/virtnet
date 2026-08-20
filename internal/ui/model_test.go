@@ -67,8 +67,8 @@ func TestSubmitRunsCommandDeterministically(t *testing.T) {
 	if !strings.Contains(transcript, "64 bytes from 10.0.0.20: icmp_seq=1 ttl=64 time=90.000 ms") {
 		t.Errorf("transcript missing ping success:\n%s", transcript)
 	}
-	if got := m.lab.Clock.Now(); got != 90*time.Millisecond {
-		t.Errorf("clock after ping = %v, want 90ms", got)
+	if got := m.lab.Clock.Now(); got != 91*time.Millisecond {
+		t.Errorf("clock after ping = %v, want 91ms", got)
 	}
 	if got := m.Input(); got != "" {
 		t.Errorf("input not cleared after submit: %q", got)

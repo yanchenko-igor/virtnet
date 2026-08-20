@@ -405,6 +405,11 @@ Process {
 
 Examples: shell, ping, netcat, DNS client, HTTP client, SSH client.
 
+Executing any command has a simulated CPU cost: the machine advances the
+virtual clock by a fixed per-command cost before the command runs. A
+command that also sends traffic advances further as its frames cross
+links, so `date`, `echo`, and a `ping` all consume virtual time.
+
 ### 7.8 Virtual filesystem
 
 Per-machine in-memory filesystem:

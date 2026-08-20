@@ -119,14 +119,22 @@ func (m *Machine) WakeupAt() time.Duration {
 	return earliest
 }
 
+// commandCost is the simulated CPU cost of executing one shell command:
+// every command advances the virtual clock by this much before it runs, so
+// even a command that sends no traffic consumes virtual time (ARCHITECTURE.md
+// §7.7). Networking costs are added on top as frames cross links.
+const commandCost = time.Millisecond
+
 // execute parses a command line and runs it. Foreground commands run to
 // completion synchronously; background commands (e.g. nc -l) register as
-// waiting processes and are stepped by Step.
+// waiting processes and are stepped by Step. Executing a command advances the
+// virtual clock by commandCost, then the command's own temporal costs.
 func (m *Machine) execute(line string) *Process {
 	argv := tokenize(line)
 	if len(argv) == 0 {
 		return nil
 	}
+	m.clock.AdvanceBy(commandCost) // CPU cost of running the command
 	name := argv[0]
 	app, ok := apps[name]
 	if !ok {
