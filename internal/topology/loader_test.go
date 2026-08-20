@@ -3,6 +3,7 @@ package topology
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -93,6 +94,75 @@ func TestBuildRefTopology(t *testing.T) {
 	// Verify default route on pc1
 	if out, err := pc1.RunCommand("ip route"); err != nil || !contains(out, "default via 10.0.0.1") {
 		t.Errorf("pc1 missing default route: %v", err)
+	}
+}
+
+func TestBuildDNSTopology(t *testing.T) {
+	data, err := os.ReadFile("testdata/dns_test.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var topo Topology
+	if err := json.Unmarshal(data, &topo); err != nil {
+		t.Fatal(err)
+	}
+
+	l, _, _, err := topo.BuildLab()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify 2 machines
+	if len(l.Machines) != 2 {
+		t.Fatalf("expected 2 machines, got %d", len(l.Machines))
+	}
+
+	dns1 := l.Machine("dns1")
+	if dns1 == nil {
+		t.Fatal("dns1 not found")
+	}
+	pc1 := l.Machine("pc1")
+	if pc1 == nil {
+		t.Fatal("pc1 not found")
+	}
+
+	// Test nslookup from pc1 to dns1 (authoritative zone)
+	out, err := pc1.RunCommand("nslookup www.example.com 10.0.0.53")
+	if err != nil {
+		t.Fatalf("nslookup failed: %v", err)
+	}
+	if !strings.Contains(out, "Address: 10.0.0.10") {
+		t.Errorf("nslookup output missing expected address:\n%s", out)
+	}
+	if !strings.Contains(out, "www.example.com") {
+		t.Errorf("nslookup output missing queried name:\n%s", out)
+	}
+
+	// Test dig from pc1 to dns1
+	out, err = pc1.RunCommand("dig @10.0.0.53 www.example.com A")
+	if err != nil {
+		t.Fatalf("dig failed: %v", err)
+	}
+	if !strings.Contains(out, "10.0.0.10") {
+		t.Errorf("dig output missing expected address:\n%s", out)
+	}
+
+	// Test nslookup for @ record
+	out, err = pc1.RunCommand("nslookup example.com 10.0.0.53")
+	if err != nil {
+		t.Fatalf("nslookup @ failed: %v", err)
+	}
+	if !strings.Contains(out, "10.0.0.10") {
+		t.Errorf("nslookup @ missing address:\n%s", out)
+	}
+
+	// Test dig for MX record
+	out, err = pc1.RunCommand("dig @10.0.0.53 example.com MX")
+	if err != nil {
+		t.Fatalf("dig MX failed: %v", err)
+	}
+	if !strings.Contains(out, "MX") {
+		t.Errorf("dig MX missing record type:\n%s", out)
 	}
 }
 
