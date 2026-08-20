@@ -316,6 +316,11 @@ func (c *TCPConn) State() tcp.State {
 	return c.state
 }
 
+// LocalPort returns the local port of the connection or listener.
+func (c *TCPConn) LocalPort() uint16 {
+	return c.localPort
+}
+
 // Remote returns the peer address and port.
 func (c *TCPConn) Remote() (netip.Addr, uint16) {
 	return c.remoteAddr, c.remotePort

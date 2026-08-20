@@ -131,3 +131,36 @@ func (fs *FS) split(path string) (*dirNode, string, error) {
 	}
 	return dir, name, nil
 }
+
+// fileSnapshot is one file in serializable form.
+type fileSnapshot struct {
+	Path string
+	Data []byte
+}
+
+// Snapshot returns every file in the filesystem in deterministic order
+// (sorted by path), the serializable form of the whole tree.
+func (fs *FS) Snapshot() []fileSnapshot {
+	var out []fileSnapshot
+	var walk func(dir *dirNode, path string)
+	walk = func(dir *dirNode, path string) {
+		dirs := make([]string, 0, len(dir.subdirs))
+		for name := range dir.subdirs {
+			dirs = append(dirs, name)
+		}
+		sort.Strings(dirs)
+		for _, name := range dirs {
+			walk(dir.subdirs[name], path+name+"/")
+		}
+		files := make([]string, 0, len(dir.files))
+		for name := range dir.files {
+			files = append(files, name)
+		}
+		sort.Strings(files)
+		for _, name := range files {
+			out = append(out, fileSnapshot{Path: path + name, Data: append([]byte(nil), dir.files[name].data...)})
+		}
+	}
+	walk(fs.root, "/")
+	return out
+}

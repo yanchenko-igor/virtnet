@@ -107,6 +107,47 @@ func (r *Router) ARPEntries(port string) []arp.KeyedEntry {
 	return nil
 }
 
+// PortIface returns the fabric interface behind a router port, or nil.
+func (r *Router) PortIface(name string) *fabric.Interface {
+	if p, ok := r.ports[name]; ok {
+		return p.iface
+	}
+	return nil
+}
+
+// PortAddr returns the IPv4 prefix of a router port, or a zero prefix.
+func (r *Router) PortAddr(name string) netip.Prefix {
+	if p, ok := r.ports[name]; ok {
+		return p.addr
+	}
+	return netip.Prefix{}
+}
+
+// ARPTimeout returns the configured ARP cache lifetime.
+func (r *Router) ARPTimeout() time.Duration {
+	return r.arpTimeout
+}
+
+// ARPSnapshot returns every port's ARP cache in serializable form, keyed by
+// port name.
+func (r *Router) ARPSnapshot() map[string][]arp.SnapshotEntry {
+	out := make(map[string][]arp.SnapshotEntry, len(r.ports))
+	for name, p := range r.ports {
+		out[name] = p.arp.Snapshot()
+	}
+	return out
+}
+
+// RestoreARPCaches replaces the per-port ARP caches with a snapshot. Ports
+// absent from the snapshot are left as-is; caches for unknown ports are ignored.
+func (r *Router) RestoreARPCaches(caches map[string][]arp.SnapshotEntry) {
+	for name, entries := range caches {
+		if p, ok := r.ports[name]; ok {
+			p.arp.Restore(entries)
+		}
+	}
+}
+
 // Routes returns the routing table entries.
 func (r *Router) Routes() []route.Route {
 	return r.routes.Routes()

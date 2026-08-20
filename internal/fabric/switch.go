@@ -151,6 +151,55 @@ func (sw *Switch) forward(port string, f ethernet.Frame) {
 	}
 }
 
+// Port returns the interface behind a switch port, or nil.
+func (sw *Switch) Port(name string) *Interface {
+	return sw.ports[name]
+}
+
+// SwitchState is a serializable snapshot of a switch's MAC learning table.
+type SwitchState struct {
+	Aging   time.Duration
+	Entries []SwitchEntryState
+}
+
+// SwitchEntryState is one row of the learning table in serializable form.
+type SwitchEntryState struct {
+	MAC     ethernet.MAC
+	Port    string
+	Expires time.Duration // virtual timestamp at which the entry ages out
+}
+
+// State captures the learning table in deterministic order (sorted by MAC).
+// Expired entries survive a round trip and are dropped lazily on the next
+// lookup, matching live behavior.
+func (sw *Switch) State() SwitchState {
+	macs := make([]ethernet.MAC, 0, len(sw.macPort))
+	for mac := range sw.macPort {
+		macs = append(macs, mac)
+	}
+	sort.Slice(macs, func(i, j int) bool {
+		return string(macs[i][:]) < string(macs[j][:])
+	})
+	st := SwitchState{Aging: sw.aging}
+	for _, mac := range macs {
+		st.Entries = append(st.Entries, SwitchEntryState{MAC: mac, Port: sw.macPort[mac], Expires: sw.macExp[mac]})
+	}
+	return st
+}
+
+// Restore replaces the learning table with a previously captured snapshot.
+// Ports must already be wired; entries referencing unknown ports are dropped.
+func (sw *Switch) Restore(st SwitchState) {
+	sw.macPort = make(map[ethernet.MAC]string, len(st.Entries))
+	sw.macExp = make(map[ethernet.MAC]time.Duration, len(st.Entries))
+	for _, e := range st.Entries {
+		if _, ok := sw.ports[e.Port]; ok {
+			sw.macPort[e.MAC] = e.Port
+			sw.macExp[e.MAC] = e.Expires
+		}
+	}
+}
+
 func (sw *Switch) sortedPorts() []string {
 	names := make([]string, 0, len(sw.ports))
 	for name := range sw.ports {

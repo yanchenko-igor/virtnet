@@ -77,3 +77,9 @@ func (t *Table) Routes() []Route {
 func (t *Table) Len() int {
 	return len(t.routes)
 }
+
+// Restore replaces the table contents with a previously captured snapshot.
+// Route order is preserved, so longest-prefix lookups stay deterministic.
+func (t *Table) Restore(routes []Route) {
+	t.routes = append(t.routes[:0], routes...)
+}

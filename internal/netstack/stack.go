@@ -116,6 +116,12 @@ func (s *Stack) Iface() *fabric.Interface {
 	return s.iface
 }
 
+// Listener returns the listening socket bound to port, or nil. Used by the
+// process restore path to re-attach a background listener's Data.
+func (s *Stack) Listener(port uint16) *TCPConn {
+	return s.tcpListeners[port]
+}
+
 // ARPEntries returns the stack's current ARP cache (expired entries removed),
 // sorted by IP.
 func (s *Stack) ARPEntries() []arp.KeyedEntry {

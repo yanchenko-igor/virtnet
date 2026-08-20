@@ -20,6 +20,15 @@ type Record struct {
 	Frame ethernet.Frame
 }
 
+// SerializedRecord is an interface-free traversal: endpoints are named by
+// label instead of pointer, so a snapshot survives a graph rebuild.
+type SerializedRecord struct {
+	Time  time.Duration
+	Src   string
+	Dst   string
+	Frame ethernet.Frame
+}
+
 // Capture is an ordered, bounded record of observed link traversals. A bound
 // of zero keeps every record; otherwise the oldest records are dropped once
 // the bound is exceeded, keeping the newest.
@@ -65,6 +74,29 @@ func (c *Capture) Len() int {
 // Reset discards all captured traversals.
 func (c *Capture) Reset() {
 	c.records = nil
+}
+
+// Snapshot converts the recorded traversals to interface-free form. label
+// names each endpoint (e.g. "pc1.eth0", "sw.p1").
+func (c *Capture) Snapshot(label func(*fabric.Interface) string) []SerializedRecord {
+	out := make([]SerializedRecord, 0, len(c.records))
+	for _, r := range c.records {
+		out = append(out, SerializedRecord{Time: r.Time, Src: label(r.Src), Dst: label(r.Dst), Frame: r.Frame})
+	}
+	return out
+}
+
+// Restore replaces the records, resolving labels back to interfaces. Records
+// whose endpoints cannot be resolved are dropped.
+func (c *Capture) Restore(recs []SerializedRecord, iface func(string) *fabric.Interface) {
+	c.records = c.records[:0]
+	for _, r := range recs {
+		src, dst := iface(r.Src), iface(r.Dst)
+		if src == nil || dst == nil {
+			continue
+		}
+		c.records = append(c.records, Record{Time: r.Time, Src: src, Dst: dst, Frame: r.Frame})
+	}
 }
 
 // CountByType returns the number of records whose frame has the given EtherType,

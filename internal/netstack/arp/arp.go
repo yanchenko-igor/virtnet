@@ -117,6 +117,43 @@ func (c *Cache) Len() int {
 	return len(c.entries)
 }
 
+// Timeout returns the configured entry lifetime.
+func (c *Cache) Timeout() time.Duration {
+	return c.timeout
+}
+
+// SnapshotEntry is one ARP cache entry in serializable form.
+type SnapshotEntry struct {
+	IP      netip.Addr
+	MAC     ethernet.MAC
+	Expires time.Duration // virtual timestamp at which the entry expires
+}
+
+// Snapshot returns the cache contents in deterministic order (sorted by IP),
+// including entries that may already be expired. Expired entries survive a
+// round trip and are dropped lazily on the next lookup, matching live behavior.
+func (c *Cache) Snapshot() []SnapshotEntry {
+	ips := make([]netip.Addr, 0, len(c.entries))
+	for ip := range c.entries {
+		ips = append(ips, ip)
+	}
+	sort.Slice(ips, func(i, j int) bool { return ips[i].Less(ips[j]) })
+	out := make([]SnapshotEntry, 0, len(ips))
+	for _, ip := range ips {
+		e := c.entries[ip]
+		out = append(out, SnapshotEntry{IP: ip, MAC: e.MAC, Expires: e.Expires})
+	}
+	return out
+}
+
+// Restore replaces the cache contents with a previously captured snapshot.
+func (c *Cache) Restore(entries []SnapshotEntry) {
+	c.entries = make(map[netip.Addr]Entry, len(entries))
+	for _, e := range entries {
+		c.entries[e.IP] = Entry{MAC: e.MAC, Expires: e.Expires}
+	}
+}
+
 // KeyedEntry is a cached mapping together with its IP address.
 type KeyedEntry struct {
 	IP  netip.Addr
