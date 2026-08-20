@@ -27,8 +27,7 @@ func (m Model) View() string {
 	if m.showPkt {
 		body = m.packetPanel(bodyH)
 	}
-	b.WriteString(strings.TrimRight(body, "\n"))
-	b.WriteByte('\n')
+	b.WriteString(body)
 	b.WriteString(m.statusBar())
 	return b.String()
 }
@@ -71,6 +70,7 @@ func (m Model) consoleBody(height int) string {
 	b.WriteString(mach.Console.Prompt())
 	b.WriteString(string(m.input))
 	b.WriteString("▌")
+	b.WriteByte('\n')
 	return b.String()
 }
 
