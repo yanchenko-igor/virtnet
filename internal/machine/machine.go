@@ -176,6 +176,7 @@ func (m *Machine) RunForegroundToCompletion(p *Process) {
 
 // StepForeground steps all foreground waiting processes once.
 // Returns true if any foreground process was stepped (UI can re-render).
+// Does NOT reap; caller (CopyForegroundOutput) reaps after copying output.
 func (m *Machine) StepForeground() bool {
 	stepped := false
 	for _, pid := range sortedPID(m.procs) {
@@ -187,13 +188,12 @@ func (m *Machine) StepForeground() bool {
 		p.step(m, p)
 		stepped = true
 	}
-	m.reap()
 	return stepped
 }
 
 // CopyForegroundOutput copies stdout/stderr from foreground waiting
 // processes to the machine's console for rendering. If a foreground
-// process has exited, writes the shell prompt.
+// process has exited, writes the shell prompt. Reaps exited processes.
 func (m *Machine) CopyForegroundOutput() {
 	for _, p := range m.procs {
 		if p == nil || p.Pid == 1 || p.step == nil || !p.Foreground {
@@ -224,6 +224,8 @@ func (m *Machine) CopyForegroundOutput() {
 			p.Stderr.Reset()
 		}
 	}
+	// Reap exited foreground processes.
+	m.reap()
 }
 
 func (m *Machine) shell() *Process {

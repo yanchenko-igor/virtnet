@@ -64,14 +64,58 @@ func TestSubmitRunsCommandDeterministically(t *testing.T) {
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	transcript := m.Active().Console.Transcript()
-	if !strings.Contains(transcript, "64 bytes from 10.0.0.20: icmp_seq=1 ttl=64 time=90.000 ms") {
-		t.Errorf("transcript missing ping success:\n%s", transcript)
+	if !strings.Contains(transcript, "PING 10.0.0.20 (10.0.0.20) 56 bytes of data.") {
+		t.Errorf("transcript missing ping header:\n%s", transcript)
 	}
-	if got := m.lab.Clock.Now(); got != 91*time.Millisecond {
-		t.Errorf("clock after ping = %v, want 91ms", got)
-	}
+	// After submit, ping is incremental - only header printed.
+	// First ping result appears on NEXT Update cycle.
 	if got := m.Input(); got != "" {
 		t.Errorf("input not cleared after submit: %q", got)
+	}
+}
+
+// TestPingIncremental verifies that ping -c N prints one result per Update cycle.
+func TestPingIncremental(t *testing.T) {
+	m := newModel(t)
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ping -c 3 10.0.0.20")})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// After Enter (first Update): header + first ping result
+	transcript := m.Active().Console.Transcript()
+	if !strings.Contains(transcript, "PING 10.0.0.20 (10.0.0.20) 56 bytes of data.") {
+		t.Errorf("transcript missing ping header:\n%s", transcript)
+	}
+	if !strings.Contains(transcript, "64 bytes from 10.0.0.20: icmp_seq=1 ttl=64 time=90.000 ms") {
+		t.Errorf("first ping result missing after Enter:\n%s", transcript)
+	}
+
+	// Update 1 (space): second ping result
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	transcript = m.Active().Console.Transcript()
+	if !strings.Contains(transcript, "icmp_seq=2") || !strings.Contains(transcript, "time=40.000 ms") {
+		t.Errorf("second ping result missing:\n%s", transcript)
+	}
+
+	// Update 2 (space): third ping result
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	transcript = m.Active().Console.Transcript()
+	if !strings.Contains(transcript, "icmp_seq=3") || !strings.Contains(transcript, "time=40.000 ms") {
+		t.Errorf("third ping result missing:\n%s", transcript)
+	}
+
+	// Update 3 (space): summary + prompt (process exits after 3 pings)
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	transcript = m.Active().Console.Transcript()
+	if !strings.Contains(transcript, "3 packets transmitted, 3 received, 0.0% packet loss") {
+		t.Errorf("ping summary missing:\n%s", transcript)
+	}
+	if !strings.HasSuffix(strings.TrimRight(transcript, "\n"), "pc1$ ") {
+		t.Errorf("final prompt missing:\n%s", transcript)
+	}
+
+	// Clock: 1ms cmd + 90 + 40 + 40 = 171ms
+	if got := m.lab.Clock.Now(); got != 171*time.Millisecond {
+		t.Errorf("clock = %v, want 171ms", got)
 	}
 }
 
