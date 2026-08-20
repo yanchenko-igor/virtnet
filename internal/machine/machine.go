@@ -47,7 +47,7 @@ func New(id, hostname string, c *clock.VirtualClock, iface *fabric.Interface, cf
 	// pid 1: the interactive shell, the machine's only always-running process.
 	m.procs[1] = &Process{
 		Pid: 1, Name: "sh", State: Running,
-		Stdin: &bytes.Buffer{}, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{},
+		Stdin: &bytes.Buffer{}, Stdout: NewBoundedBuffer(MaxTranscriptBytes), Stderr: NewBoundedBuffer(MaxTranscriptBytes),
 		m: m,
 	}
 	return m, nil

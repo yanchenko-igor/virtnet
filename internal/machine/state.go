@@ -76,7 +76,7 @@ func NewWithStack(id, hostname string, c *clock.VirtualClock, st *netstack.Stack
 	_ = m.FS.WriteFile("/etc/hostname", []byte(hostname+"\n"))
 	m.procs[1] = &Process{
 		Pid: 1, Name: "sh", State: Running,
-		Stdin: &bytes.Buffer{}, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{},
+		Stdin: &bytes.Buffer{}, Stdout: NewBoundedBuffer(MaxTranscriptBytes), Stderr: NewBoundedBuffer(MaxTranscriptBytes),
 		m: m,
 	}
 	return m
@@ -137,7 +137,7 @@ func (m *Machine) Restore(st MachineState) error {
 	m.Console.Write(st.Transcript)
 	m.nextPID = st.NextPID
 	m.procs = map[int]*Process{
-		1: {Pid: 1, Name: "sh", State: Running, Stdin: &bytes.Buffer{}, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}, m: m},
+		1: {Pid: 1, Name: "sh", State: Running, Stdin: &bytes.Buffer{}, Stdout: NewBoundedBuffer(MaxTranscriptBytes), Stderr: NewBoundedBuffer(MaxTranscriptBytes), m: m},
 	}
 	for _, ps := range st.Procs {
 		p := &Process{
@@ -146,8 +146,8 @@ func (m *Machine) Restore(st MachineState) error {
 			Args:     ps.Args,
 			State:    ps.State,
 			Stdin:    &bytes.Buffer{},
-			Stdout:   &bytes.Buffer{},
-			Stderr:   &bytes.Buffer{},
+			Stdout:   NewBoundedBuffer(MaxTranscriptBytes),
+			Stderr:   NewBoundedBuffer(MaxTranscriptBytes),
 			WakeupAt: ps.WakeupAt,
 			ExitCode: ps.ExitCode,
 			m:        m,

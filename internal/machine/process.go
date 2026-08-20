@@ -37,8 +37,8 @@ type Process struct {
 	Args     []string
 	State    ProcessState
 	Stdin    *bytes.Buffer
-	Stdout   *bytes.Buffer
-	Stderr   *bytes.Buffer
+	Stdout   *BoundedBuffer
+	Stderr   *BoundedBuffer
 	WakeupAt time.Duration // virtual-clock deadline; zero = no time-based wakeup
 	ExitCode int
 
@@ -49,6 +49,50 @@ type Process struct {
 	Data any
 }
 
+// BoundedBuffer is a bytes.Buffer with a maximum size. When full, new writes
+// evict the oldest data (like a ring buffer for scrollback).
+type BoundedBuffer struct {
+	buf     []byte
+	maxSize int
+}
+
+// NewBoundedBuffer creates a buffer with the given max size (e.g. 64KB).
+func NewBoundedBuffer(maxSize int) *BoundedBuffer {
+	return &BoundedBuffer{buf: make([]byte, 0, maxSize), maxSize: maxSize}
+}
+
+// WriteString appends s to the buffer, evicting oldest data if needed.
+func (b *BoundedBuffer) WriteString(s string) (int, error) {
+	data := []byte(s)
+	if len(data) >= b.maxSize {
+		// Single write exceeds limit: keep only the suffix.
+		b.buf = data[len(data)-b.maxSize:]
+		return len(data), nil
+	}
+	if len(b.buf)+len(data) > b.maxSize {
+		// Evict oldest to make room.
+		keep := b.maxSize - len(data)
+		b.buf = b.buf[len(b.buf)-keep:]
+	}
+	b.buf = append(b.buf, data...)
+	return len(data), nil
+}
+
+// String returns the buffer contents as a string.
+func (b *BoundedBuffer) String() string {
+	return string(b.buf)
+}
+
+// Len returns the current buffer length.
+func (b *BoundedBuffer) Len() int {
+	return len(b.buf)
+}
+
+// Reset clears the buffer.
+func (b *BoundedBuffer) Reset() {
+	b.buf = b.buf[:0]
+}
+
 // newProcess creates a process with empty standard streams.
 func newProcess(m *Machine, name string, args []string) *Process {
 	return &Process{
@@ -57,20 +101,20 @@ func newProcess(m *Machine, name string, args []string) *Process {
 		Args:   args,
 		State:  Running,
 		Stdin:  &bytes.Buffer{},
-		Stdout: &bytes.Buffer{},
-		Stderr: &bytes.Buffer{},
+		Stdout: NewBoundedBuffer(MaxTranscriptBytes),
+		Stderr: NewBoundedBuffer(MaxTranscriptBytes),
 		m:      m,
 	}
 }
 
 // writeOut appends text to the process's stdout.
 func (p *Process) writeOut(s string) {
-	p.Stdout.WriteString(s)
+	_, _ = p.Stdout.WriteString(s)
 }
 
 // writeErr appends text to the process's stderr.
 func (p *Process) writeErr(s string) {
-	p.Stderr.WriteString(s)
+	_, _ = p.Stderr.WriteString(s)
 }
 
 // exit marks the process as exited with the given code.
