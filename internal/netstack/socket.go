@@ -172,6 +172,8 @@ type TCPConn struct {
 	backlog []*TCPConn // LISTEN: children awaiting Accept
 
 	timeWaitUntil time.Duration
+
+	remoteConn *TCPConn // for self-connection loopback
 }
 
 type tcpKey struct {
@@ -198,7 +200,13 @@ func (s *Stack) Listen(port uint16) (*TCPConn, error) {
 
 // Dial opens a connection to addr:port and completes the three-way handshake
 // synchronously: SYN, SYN-ACK, and ACK all cross the links within this call.
+// Self-connection (to own IP) is handled locally without ARP/fabric.
 func (s *Stack) Dial(dst netip.Addr, port uint16) (*TCPConn, error) {
+	// Self-connection: handle locally without ARP/fabric (loopback).
+	if dst == s.addr.Addr() {
+		return s.dialSelf(port)
+	}
+
 	s.Tick()
 	c := &TCPConn{
 		stack:      s,
@@ -223,6 +231,47 @@ func (s *Stack) Dial(dst netip.Addr, port uint16) (*TCPConn, error) {
 		delete(s.tcpConns, key)
 		return nil, fmt.Errorf("netstack: connect to %s:%d failed", dst, port)
 	}
+	return c, nil
+}
+
+func (s *Stack) dialSelf(port uint16) (*TCPConn, error) {
+	// Create two connected sockets for loopback
+	c := &TCPConn{
+		stack:      s,
+		state:      tcp.StateEstablished,
+		localAddr:  s.addr.Addr(),
+		localPort:  s.ephemeralPort(),
+		remoteAddr: s.addr.Addr(),
+		remotePort: port,
+		sndNxt:     s.allocISN(),
+		rcvNxt:     s.allocISN(),
+		rto:        DefaultRTO,
+	}
+	key := c.key()
+	s.tcpConns[key] = c
+
+	// Create the server-side socket
+	if _, ok := s.tcpListeners[port]; !ok {
+		return nil, fmt.Errorf("netstack: no listener on port %d", port)
+	}
+	serverConn := &TCPConn{
+		stack:      s,
+		state:      tcp.StateEstablished,
+		localAddr:  s.addr.Addr(),
+		localPort:  port,
+		remoteAddr: s.addr.Addr(),
+		remotePort: c.localPort,
+		sndNxt:     s.allocISN(),
+		rcvNxt:     s.allocISN(),
+		rto:        DefaultRTO,
+	}
+	serverKey := serverConn.key()
+	s.tcpConns[serverKey] = serverConn
+
+	// Link them together
+	c.remoteConn = serverConn
+	serverConn.remoteConn = c
+
 	return c, nil
 }
 
@@ -275,6 +324,11 @@ func (c *TCPConn) Write(data []byte) (int, error) {
 	}
 	if len(data) == 0 {
 		return 0, nil
+	}
+	// Self-connection: directly append to peer's rxq
+	if c.remoteConn != nil {
+		c.remoteConn.rxq = append(c.remoteConn.rxq, data...)
+		return len(data), nil
 	}
 	seg := &tcp.Segment{SrcPort: c.localPort, DstPort: c.remotePort, Seq: c.sndNxt, Ack: c.rcvNxt, Flags: tcp.FlagACK, Window: tcpWindow, Payload: data}
 	c.sndNxt += uint32(len(data))
