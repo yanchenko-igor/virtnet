@@ -114,7 +114,12 @@ func cmdCat(m *Machine, args []string) *Process {
 		p.exit(1)
 		return p
 	}
-	p.writeOut(string(data))
+	// Ensure output ends with a single newline
+	out := string(data)
+	if !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	p.writeOut(out)
 	return p
 }
 

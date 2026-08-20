@@ -343,14 +343,14 @@ func (c *TCPConn) Write(data []byte) (int, error) {
 		// Also invoke service for self-connection (bypasses handleTCP)
 		if svc, ok := c.stack.services[services.ServiceKey{Port: c.remotePort, Proto: uint8(ipv4.ProtoTCP)}]; ok {
 			ctx := services.ServiceContext{
-				Machine:   nil,
-				Stack:     c.stack,
-				SrcAddr:   c.localAddr,
-				SrcPort:   c.localPort,
-				DstAddr:   c.remoteAddr,
-				DstPort:   c.remotePort,
-				Proto:     uint8(ipv4.ProtoTCP),
-				Clock:     c.stack.clock,
+				Machine: nil,
+				Stack:   c.stack,
+				SrcAddr: c.localAddr,
+				SrcPort: c.localPort,
+				DstAddr: c.remoteAddr,
+				DstPort: c.remotePort,
+				Proto:   uint8(ipv4.ProtoTCP),
+				Clock:   c.stack.clock,
 			}
 			resp, err := svc.HandleRequest(ctx, services.ServiceRequest{Payload: data})
 			if err == nil && len(resp) > 0 {
