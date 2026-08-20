@@ -256,25 +256,23 @@ func cmdPing(m *Machine, args []string) *Process {
 		return p
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "PING %s (%s) 56 bytes of data.\n", addr, addr)
+	p.writeOut(fmt.Sprintf("PING %s (%s) 56 bytes of data.\n", addr, addr))
 	received := 0
 	for i := 1; i <= count; i++ {
 		res, err := m.Stack.Ping(addr)
 		if err != nil {
-			fmt.Fprintf(&b, "Request timeout for icmp_seq %d\n", i)
+			p.writeOut(fmt.Sprintf("Request timeout for icmp_seq %d\n", i))
 			continue
 		}
 		received++
-		fmt.Fprintf(&b, "64 bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", addr, i, 64, float64(res.RTT)/float64(time.Millisecond))
+		p.writeOut(fmt.Sprintf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", addr, i, 64, float64(res.RTT)/float64(time.Millisecond)))
 	}
-	fmt.Fprintf(&b, "--- %s ping statistics ---\n", addr)
+	p.writeOut(fmt.Sprintf("--- %s ping statistics ---\n", addr))
 	loss := 100.0
 	if count > 0 {
 		loss = 100.0 * float64(count-received) / float64(count)
 	}
-	fmt.Fprintf(&b, "%d packets transmitted, %d received, %.1f%% packet loss\n", count, received, loss)
-	p.writeOut(b.String())
+	p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss\n", count, received, loss))
 	if received < count {
 		p.exit(1)
 	}
