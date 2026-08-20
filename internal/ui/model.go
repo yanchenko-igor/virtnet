@@ -8,6 +8,7 @@
 package ui
 
 import (
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
@@ -78,7 +79,12 @@ func (m *Model) Submit() {
 		return
 	}
 	mach := m.Active()
-	mach.Console.WritePrompt()
+	// Only write prompt if transcript doesn't already end with one
+	// (e.g. from a just-finished foreground process via CopyForegroundOutput).
+	tr := mach.Console.Transcript()
+	if !strings.HasSuffix(tr, mach.Console.Prompt()) {
+		mach.Console.WritePrompt()
+	}
 	mach.Console.Write(line + "\n")
 	p := mach.Execute(line)
 	if p != nil {
