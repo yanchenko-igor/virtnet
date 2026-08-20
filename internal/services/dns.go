@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"net/netip"
 	"strings"
 	"sync"
@@ -452,7 +453,129 @@ func (d *DNSService) lookup(ctx ServiceContext, name string, qtype uint16) []Rec
 }
 
 func (d *DNSService) resolveRecursive(ctx ServiceContext, name string) []Record {
+	return d.resolveRecursiveFrom(ctx, name, d.roots, 0)
+}
+
+func (d *DNSService) resolveRecursiveFrom(ctx ServiceContext, name string, servers []RootHint, depth int) []Record {
+	if depth > 10 {
+		return nil // prevent infinite recursion
+	}
+	
+	for _, server := range servers {
+		recs := d.queryAndFollow(ctx, server.IP, name, TypeA, depth)
+		if len(recs) > 0 {
+			return recs
+		}
+	}
 	return nil
+}
+
+func (d *DNSService) queryAndFollow(ctx ServiceContext, serverIP netip.Addr, name string, qtype uint16, depth int) []Record {
+	query := d.buildQuery(name, qtype)
+	
+	// Send UDP query to server
+	resp, err := d.sendUDPQuery(ctx, serverIP, query)
+	if err != nil || len(resp) == 0 {
+		return nil
+	}
+	
+	msg, err := parseDNSMessage(resp)
+	if err != nil {
+		return nil
+	}
+	
+	// Check if we got an answer
+	if len(msg.Answers) > 0 {
+		for _, ans := range msg.Answers {
+			if ans.Type == qtype {
+				clk := ctx.Clock.(interface{ Now() time.Duration })
+				d.cache.Set(fmt.Sprintf("%s|%d", name, qtype), []Record{ans}, time.Duration(ans.TTL)*time.Second, clk.Now())
+				return []Record{ans}
+			}
+		}
+	}
+	
+	// Check for referral (authority section has NS records)
+	if len(msg.Authority) > 0 {
+		// Extract NS records and their glue A records
+		var nsRecords []Record
+		glue := make(map[string]netip.Addr)
+		
+		for _, auth := range msg.Authority {
+			if auth.Type == TypeNS {
+				nsRecords = append(nsRecords, auth)
+			} else if auth.Type == TypeA {
+				// Glue record
+				if ip, ok := d.parseAData(auth.Data); ok {
+					glue[auth.Name] = ip
+				}
+			}
+		}
+		
+		// Follow referral - query NS servers
+		if len(nsRecords) > 0 {
+			// Build list of servers to query
+			var nextServers []RootHint
+			for _, ns := range nsRecords {
+				nsName := string(ns.Data)
+				if ip, ok := glue[nsName]; ok {
+					nextServers = append(nextServers, RootHint{Name: nsName, IP: ip})
+				}
+			}
+			// If no glue, would need to resolve NS names first (simplified for now)
+			if len(nextServers) > 0 {
+				return d.resolveRecursiveFrom(ctx, name, nextServers, depth+1)
+			}
+		}
+	}
+	
+	return nil
+}
+
+func (d *DNSService) parseAData(data []byte) (netip.Addr, bool) {
+	if len(data) != 4 {
+		return netip.Addr{}, false
+	}
+	return netip.AddrFrom4([4]byte{data[0], data[1], data[2], data[3]}), true
+}
+
+func (d *DNSService) buildQuery(name string, qtype uint16) []byte {
+	id := uint16(rand.Intn(65535))
+	msg := DNSMessage{
+		ID: id,
+		Flags: 0x0100, // RD=1 (recursion desired)
+		QDCount: 1,
+		Questions: []DNSQuestion{
+			{Name: name, Type: qtype, Class: ClassIN},
+		},
+	}
+	return msg.pack()
+}
+
+func (d *DNSService) sendUDPQuery(ctx ServiceContext, serverIP netip.Addr, query []byte) ([]byte, error) {
+	// Create UDP socket - type assert Stack to access ListenUDP
+	stack, ok := ctx.Stack.(interface{ ListenUDP(uint16) (UDPSocket, error) })
+	if !ok {
+		return nil, fmt.Errorf("stack does not support ListenUDP")
+	}
+	// Create UDP socket
+	sock, err := stack.ListenUDP(0)
+	if err != nil {
+		return nil, err
+	}
+	defer sock.Close()
+	
+	// Send query to server
+	if err := sock.SendTo(serverIP, 53, query); err != nil {
+		return nil, err
+	}
+	
+	// Read response (synchronous in our model)
+	_, _, data, ok := sock.RecvFrom()
+	if !ok {
+		return nil, fmt.Errorf("no response from DNS server")
+	}
+	return data, nil
 }
 
 func (d *DNSService) nameMatch(qname, zone, rname string) bool {

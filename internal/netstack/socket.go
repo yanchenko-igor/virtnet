@@ -198,6 +198,19 @@ func (s *Stack) Listen(port uint16) (*TCPConn, error) {
 	return l, nil
 }
 
+// ListenUDP creates a UDP socket bound to port.
+func (s *Stack) ListenUDP(port uint16) (*UDPSocket, error) {
+	s.Tick()
+	if _, taken := s.udpSockets[port]; taken {
+		return nil, fmt.Errorf("netstack: UDP port %d already in use", port)
+	}
+	sock := s.NewUDPSocket()
+	if err := sock.Bind(port); err != nil {
+		return nil, err
+	}
+	return sock, nil
+}
+
 // Dial opens a connection to addr:port and completes the three-way handshake
 // synchronously: SYN, SYN-ACK, and ACK all cross the links within this call.
 // Self-connection (to own IP) is handled locally without ARP/fabric.

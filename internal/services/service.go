@@ -34,6 +34,13 @@ type Service interface {
 	HandleRequest(ctx ServiceContext, req ServiceRequest) ([]byte, error)
 }
 
+// UDPSocket is the interface for UDP sockets used by services
+type UDPSocket interface {
+	SendTo(addr netip.Addr, port uint16, data []byte) error
+	RecvFrom() (netip.Addr, uint16, []byte, bool)
+	Close() error
+}
+
 type ServiceFactory func(config map[string]interface{}) Service
 
 var factories = make(map[string]ServiceFactory)
