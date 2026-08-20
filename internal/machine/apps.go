@@ -326,8 +326,8 @@ func pingStep(m *Machine, p *Process) {
 func pingInterrupt(m *Machine, p *Process) {
 	st := p.Data.(*pingState)
 	loss := 100.0
-	if st.count > 0 {
-		loss = 100.0 * float64(st.count-st.recv) / float64(st.count)
+	if st.sent > 0 {
+		loss = 100.0 * float64(st.sent-st.recv) / float64(st.sent)
 	}
 	p.writeOut(fmt.Sprintf("\n--- %s ping statistics ---\n", st.addr))
 	p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss, time %.0fms\n",
