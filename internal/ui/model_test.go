@@ -170,9 +170,7 @@ func TestQuitKeys(t *testing.T) {
 		name string
 		key  tea.KeyType
 	}{
-		{"ctrl+c", tea.KeyCtrlC},
-		{"esc", tea.KeyEsc},
-		{"ctrl+q", tea.KeyCtrlQ},
+		{"ctrl+d", tea.KeyCtrlD},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newModel(t)
@@ -182,6 +180,33 @@ func TestQuitKeys(t *testing.T) {
 			}
 			_ = nm
 		})
+	}
+}
+
+// TestCtrlCInterruptsPing verifies Ctrl+C interrupts a running ping.
+func TestCtrlCInterruptsPing(t *testing.T) {
+	m := newModel(t)
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ping -c 100 10.0.0.20")})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Let it run a few pings
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+
+	// Ctrl+C should interrupt
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlC})
+
+	transcript := m.Active().Console.Transcript()
+	// Should have started ping, some results, then interrupt
+	if !strings.Contains(transcript, "PING 10.0.0.20") {
+		t.Errorf("missing ping header:\n%s", transcript)
+	}
+	if !strings.Contains(transcript, "64 bytes from") {
+		t.Errorf("missing ping results before interrupt:\n%s", transcript)
+	}
+	// Should have prompt back after interrupt
+	if !strings.HasSuffix(strings.TrimRight(transcript, "\n"), "pc1$ ") {
+		t.Errorf("prompt missing after interrupt:\n%s", transcript)
 	}
 }
 

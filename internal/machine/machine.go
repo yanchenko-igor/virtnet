@@ -191,6 +191,22 @@ func (m *Machine) StepForeground() bool {
 	return stepped
 }
 
+// InterruptForeground terminates any running foreground process (e.g. ping)
+// by marking it Exited and copying remaining output.
+func (m *Machine) InterruptForeground() {
+	for _, pid := range sortedPID(m.procs) {
+		p := m.procs[pid]
+		if p == nil || p == m.shell() || p.step == nil || !p.Foreground {
+			continue
+		}
+		if p.State == Waiting || p.State == Running {
+			p.writeOut("\n")
+			p.exit(130) // SIGINT
+		}
+	}
+	m.CopyForegroundOutput()
+}
+
 // CopyForegroundOutput copies stdout/stderr from foreground waiting
 // processes to the machine's console for rendering. If a foreground
 // process has exited, writes the shell prompt. Reaps exited processes.

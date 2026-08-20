@@ -118,8 +118,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc, tea.KeyCtrlQ:
+		case tea.KeyCtrlD: // Ctrl+D = quit (like shell)
 			return m, tea.Quit
+		case tea.KeyCtrlC: // Ctrl+C = interrupt foreground process
+			for _, mach := range m.lab.Machines {
+				mach.InterruptForeground()
+			}
 		case tea.KeyCtrlP:
 			m.TogglePackets()
 		case tea.KeyEnter:
