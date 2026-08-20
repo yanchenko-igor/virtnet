@@ -110,6 +110,12 @@ func (s *Stack) MAC() ethernet.MAC {
 	return s.iface.MAC
 }
 
+// Iface returns the bound fabric interface. The lab and UI use it to map
+// captured frames back to machines; the stack itself never depends on them.
+func (s *Stack) Iface() *fabric.Interface {
+	return s.iface
+}
+
 // ARPEntries returns the stack's current ARP cache (expired entries removed),
 // sorted by IP.
 func (s *Stack) ARPEntries() []arp.KeyedEntry {

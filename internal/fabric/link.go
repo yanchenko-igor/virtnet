@@ -19,6 +19,19 @@ type Link struct {
 	clock *clock.VirtualClock
 	a, b  *Interface
 	delay time.Duration
+	taps  []Tap
+}
+
+// Tap observes a frame crossing a link. It is called after the virtual clock
+// has advanced to the delivery timestamp and before the peer receives the
+// frame. Taps are pure observation: they must not mutate the frame or advance
+// the clock (ARCHITECTURE.md §11.3).
+type Tap func(now time.Duration, src, dst *Interface, f ethernet.Frame)
+
+// AddTap registers an observer on the link. Multiple taps are allowed and run
+// in registration order.
+func (l *Link) AddTap(t Tap) {
+	l.taps = append(l.taps, t)
 }
 
 // NewLink connects two interfaces with a simulated propagation delay.
@@ -64,6 +77,9 @@ func (l *Link) Transmit(src *Interface, f ethernet.Frame) error {
 	}
 	if err := l.clock.AdvanceBy(l.delay); err != nil {
 		return fmt.Errorf("fabric: link transmit: %w", err)
+	}
+	for _, t := range l.taps {
+		t(l.clock.Now(), src, peer, f)
 	}
 	return peer.Receive(f)
 }

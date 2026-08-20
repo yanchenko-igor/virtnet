@@ -1,35 +1,27 @@
-// Command virtnet runs the single-process virtual network simulator.
-//
-// Phase 1: a minimal seed-driven determinism demo. The TUI arrives in phase 7.
+// Command virtnet runs the virtual network simulator TUI: machine consoles
+// as tabs over the §15 reference topology, with a clock display and a live
+// packet panel (ARCHITECTURE.md §11).
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/yanchenko-igor/virtnet/internal/sim"
+	"github.com/charmbracelet/bubbletea"
+	"github.com/yanchenko-igor/virtnet/internal/lab"
+	"github.com/yanchenko-igor/virtnet/internal/ui"
 )
 
 func main() {
-	seed := flag.Uint64("seed", 12345, "simulation randomness seed")
-	flag.Parse()
-
-	s := sim.New(*seed)
-	if err := s.Clock().AdvanceBy(100 * time.Millisecond); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	digest, err := s.Digest()
+	l, err := lab.New15()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("seed:         %d\n", *seed)
-	fmt.Printf("virtual time: %v\n", s.Clock().Now())
-	fmt.Printf("state digest: %x\n", digest)
-	fmt.Println("same seed → same digest (determinism)")
+	p := tea.NewProgram(ui.New(l), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
