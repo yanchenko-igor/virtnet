@@ -16,15 +16,15 @@ import (
 // network stack, filesystem, processes, and console. It is a plain object
 // with no OS process, thread, kernel, or host network interface behind it.
 type Machine struct {
-	ID       string
-	Hostname string
-	Stack    *netstack.Stack
-	FS       *FS
-	Console  *Console
-
-	clock   *clock.VirtualClock
-	procs   map[int]*Process
-	nextPID int
+	ID           string
+	Hostname     string
+	Stack        *netstack.Stack
+	FS           *FS
+	Console      *Console
+	clock        *clock.VirtualClock
+	procs        map[int]*Process
+	nextPID      int
+	lastExitCode int // $? - exit code of last foreground command
 }
 
 // New builds a machine around a fresh network stack on iface.
@@ -171,6 +171,7 @@ func (m *Machine) RunForegroundToCompletion(p *Process) {
 		p.State = Running
 		p.step(m, p)
 	}
+	m.lastExitCode = p.ExitCode
 	m.reap()
 }
 
@@ -227,6 +228,7 @@ func (m *Machine) CopyForegroundOutput() {
 				m.Console.Write(s)
 				p.Stderr.Reset()
 			}
+			m.lastExitCode = p.ExitCode
 			m.Console.WritePrompt()
 			continue
 		}

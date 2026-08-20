@@ -70,7 +70,10 @@ func cmdHostname(m *Machine, args []string) *Process {
 
 func cmdEcho(m *Machine, args []string) *Process {
 	p := newProcess(m, "echo", args)
-	p.writeOut(strings.Join(args, " ") + "\n")
+	out := strings.Join(args, " ")
+	// Expand $? to last exit code
+	out = strings.ReplaceAll(out, "$?", strconv.Itoa(m.lastExitCode))
+	p.writeOut(out + "\n")
 	return p
 }
 
