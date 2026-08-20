@@ -1,0 +1,43 @@
+{
+  "machines": [
+    {
+      "id": "pc1",
+      "host": "pc1",
+      "ip": "10.0.0.10/24",
+      "mac": "02:00:00:00:00:01",
+      "gateway": "10.0.0.1"
+    },
+    {
+      "id": "pc2",
+      "host": "pc2",
+      "ip": "10.0.0.20/24",
+      "mac": "02:00:00:00:00:02"
+    },
+    {
+      "id": "pc3",
+      "host": "pc3",
+      "ip": "10.0.1.10/24",
+      "mac": "02:00:00:00:00:03",
+      "gateway": "10.0.1.1"
+    }
+  ],
+  "switches": [
+    { "id": "sw1" }
+  ],
+  "routers": [
+    {
+      "id": "r1",
+      "host": "r1",
+      "interfaces": [
+        { "name": "eth0", "ip": "10.0.0.1/24", "mac": "02:00:00:00:00:0a" },
+        { "name": "eth1", "ip": "10.0.1.1/24", "mac": "02:00:00:00:00:0b" }
+      ]
+    }
+  ],
+  "links": [
+    { "a": "machine:pc1:eth0", "b": "switch:sw1:p1", "delay_ms": 10 },
+    { "a": "machine:pc2:eth0", "b": "switch:sw1:p2", "delay_ms": 10 },
+    { "a": "router:r1:eth0", "b": "switch:sw1:p3", "delay_ms": 10 },
+    { "a": "router:r1:eth1", "b": "machine:pc3:eth0", "delay_ms": 10 }
+  ]
+}

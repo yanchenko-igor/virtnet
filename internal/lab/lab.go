@@ -205,3 +205,19 @@ func mustMAC(s string) ethernet.MAC {
 	}
 	return m
 }
+
+// NewWithMachines creates a Lab with the given clock and machines.
+// Unlike New15/New15At, it does not add any links or routes.
+// The caller is responsible for wiring machines, switches, routers, and capture.
+func NewWithMachines(c *clock.VirtualClock, machines []*machine.Machine) (*Lab, error) {
+	l := &Lab{
+		Clock:      c,
+		Capture:    capture.New(0),
+		Machines:   machines,
+		ifaceOwner: make(map[*fabric.Interface]*machine.Machine),
+	}
+	for _, m := range machines {
+		l.ifaceOwner[m.Stack.Iface()] = m
+	}
+	return l, nil
+}
