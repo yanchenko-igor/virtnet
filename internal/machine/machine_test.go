@@ -232,6 +232,31 @@ func TestNCExchange(t *testing.T) {
 	}
 }
 
+func TestShellDate(t *testing.T) {
+	c := clock.NewAt(time.Date(2026, time.January, 15, 8, 0, 0, 0, time.UTC))
+	pc1if := fabric.NewInterface("eth0", mustMAC(t, "02:00:00:00:00:01"))
+	pc1, err := New("pc1", "pc1", c, pc1if, netstack.Config{Addr: netip.MustParsePrefix("10.0.0.10/24")})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := pc1.RunCommand("date")
+	if err != nil {
+		t.Fatalf("date: %v", err)
+	}
+	if out != "Thu Jan 15 08:00:00.000 UTC 2026 (t=0s)\n" {
+		t.Errorf("date at t=0 = %q", out)
+	}
+
+	if err := c.AdvanceBy(10*time.Millisecond + 250*time.Microsecond); err != nil {
+		t.Fatal(err)
+	}
+	out, _ = pc1.RunCommand("date")
+	if out != "Thu Jan 15 08:00:00.010 UTC 2026 (t=10.25ms)\n" {
+		t.Errorf("date after advance = %q", out)
+	}
+}
+
 func TestConsoleTranscript(t *testing.T) {
 	_, pc1, _ := setupMachines(t, 10*time.Millisecond)
 	pc1.HandleInput("hostname")

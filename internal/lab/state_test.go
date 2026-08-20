@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -159,5 +160,56 @@ func TestDigestDeterministic(t *testing.T) {
 	d2, _ := l.Digest()
 	if d1 != d2 {
 		t.Fatalf("digest not deterministic:\n  %x\n  %x", d1, d2)
+	}
+}
+
+// TestNew15AtDateCommand anchors the clock at a start timestamp and verifies
+// the date command reads it, and that the anchor survives a checkpoint.
+func TestNew15AtDateCommand(t *testing.T) {
+	start := time.Date(2026, time.January, 15, 8, 0, 0, 0, time.UTC)
+	l, err := New15At(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pc1 := l.Machine("pc1")
+	pc1.HandleInput("date")
+	if tr := pc1.Console.Transcript(); !strings.Contains(tr, "Thu Jan 15 08:00:00.000 UTC 2026 (t=0s)\n") {
+		t.Fatalf("date at start = %q", tr)
+	}
+
+	pc1.HandleInput("ping 10.0.0.20") // advances the clock by 90ms (cold)
+	pc1.HandleInput("date")
+	if tr := pc1.Console.Transcript(); !strings.Contains(tr, "Thu Jan 15 08:00:00.090 UTC 2026 (t=90ms)\n") {
+		t.Fatalf("date after ping = %q", tr)
+	}
+
+	// The anchor is part of the world snapshot: a restored lab reads the same
+	// date.
+	restored, err := RestoreWorld(l.Snapshot())
+	if err != nil {
+		t.Fatalf("RestoreWorld: %v", err)
+	}
+	out, err := restored.Machine("pc1").RunCommand("date")
+	if err != nil {
+		t.Fatalf("date after restore: %v", err)
+	}
+	if out != "Thu Jan 15 08:00:00.090 UTC 2026 (t=90ms)\n" {
+		t.Fatalf("date after restore = %q", out)
+	}
+}
+
+// TestDefaultLabDateAtEpoch asserts the unanchored lab reads the Unix epoch.
+func TestDefaultLabDateAtEpoch(t *testing.T) {
+	l, err := New15()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := l.Machine("pc1").RunCommand("date")
+	if err != nil {
+		t.Fatalf("date: %v", err)
+	}
+	if out != "Thu Jan  1 00:00:00.000 UTC 1970 (t=0s)\n" {
+		t.Fatalf("default date = %q", out)
 	}
 }

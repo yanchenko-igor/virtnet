@@ -18,6 +18,7 @@ type appFunc func(m *Machine, args []string) *Process
 var apps = map[string]appFunc{
 	"arp":      cmdARP,
 	"cat":      cmdCat,
+	"date":     cmdDate,
 	"echo":     cmdEcho,
 	"help":     cmdHelp,
 	"hostname": cmdHostname,
@@ -35,6 +36,7 @@ func cmdHelp(m *Machine, args []string) *Process {
 	p.writeOut(`Available commands:
   arp        show the ARP cache
   cat FILE   print a file
+  date       print the virtual date and time
   echo TEXT  print text
   help       this list
   hostname   print the hostname
@@ -46,6 +48,17 @@ func cmdHelp(m *Machine, args []string) *Process {
   ping [-c N] DST   ping a host
   route      show the routing table
 `)
+	return p
+}
+
+// cmdDate prints the virtual wall time: the lab's start timestamp plus the
+// accumulated virtual-clock offset. It never consults the host clock
+// (ARCHITECTURE.md §5.2).
+func cmdDate(m *Machine, args []string) *Process {
+	p := newProcess(m, "date", args)
+	t := m.clock.WallTime()
+	p.writeOut(t.Format("Mon Jan _2 15:04:05.000 UTC 2006"))
+	p.writeOut(fmt.Sprintf(" (t=%s)\n", m.clock.Now()))
 	return p
 }
 

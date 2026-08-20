@@ -11,17 +11,38 @@ import (
 	"time"
 )
 
-// VirtualClock tracks simulation time as a time.Duration.
+// VirtualClock tracks simulation time as a time.Duration offset from a fixed
+// wall-time epoch.
 //
 // time.Duration provides nanosecond resolution and serializes as an integer,
-// which keeps determinism and checkpointing trivial.
+// which keeps determinism and checkpointing trivial. The epoch anchor is what
+// the `date` command reads: virtual time itself never consults the host clock.
 type VirtualClock struct {
+	base    time.Time
 	current time.Duration
 }
 
-// New returns a clock starting at virtual time zero.
+// New returns a clock anchored at the Unix epoch, starting at virtual time
+// zero.
 func New() *VirtualClock {
-	return &VirtualClock{}
+	return NewAt(time.Unix(0, 0))
+}
+
+// NewAt returns a clock whose wall time reads as base plus the elapsed virtual
+// time: WallTime() = base.Add(current). The base is normalized to UTC so a
+// snapshot serializes deterministically regardless of the input's zone.
+func NewAt(base time.Time) *VirtualClock {
+	return &VirtualClock{base: base.UTC()}
+}
+
+// Base returns the wall-time epoch the clock is anchored to.
+func (c *VirtualClock) Base() time.Time {
+	return c.base
+}
+
+// WallTime returns the wall time corresponding to the current virtual time.
+func (c *VirtualClock) WallTime() time.Time {
+	return c.base.Add(c.current)
 }
 
 // Now returns the current virtual time.

@@ -26,6 +26,9 @@ import (
 // WorldSnapshot is a full serializable snapshot of the laboratory.
 type WorldSnapshot struct {
 	Clock time.Duration
+	// Start is the wall-time anchor of the virtual clock (the `date` command's
+	// epoch), normalized to UTC.
+	Start time.Time
 	// RouterARPTimeout is the router's ARP cache lifetime (new entries added
 	// after restore use it).
 	RouterARPTimeout time.Duration
@@ -82,6 +85,7 @@ type machineState struct {
 func (l *Lab) Snapshot() WorldSnapshot {
 	ws := WorldSnapshot{
 		Clock:            l.Clock.Now(),
+		Start:            l.Clock.Base(),
 		RouterARPTimeout: l.Router.ARPTimeout(),
 		Switch:           l.Switch.State(),
 		RouterARP:        l.Router.ARPSnapshot(),
@@ -151,7 +155,7 @@ func RestoreWorld(ws WorldSnapshot) (*Lab, error) {
 	if ws.Clock < 0 {
 		return nil, fmt.Errorf("lab: restore: negative virtual clock %v", ws.Clock)
 	}
-	c := clock.New()
+	c := clock.NewAt(ws.Start)
 	c.Set(ws.Clock)
 	l := &Lab{
 		Clock:      c,

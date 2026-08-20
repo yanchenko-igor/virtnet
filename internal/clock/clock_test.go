@@ -95,3 +95,32 @@ func TestAdvanceOrdering(t *testing.T) {
 		t.Fatalf("Now() = %v, want 30ms", c.Now())
 	}
 }
+
+func TestNewAtAnchorsWallTime(t *testing.T) {
+	base := time.Date(2026, time.January, 15, 8, 0, 0, 0, time.FixedZone("X", 3600))
+	c := NewAt(base)
+	if got := c.Base(); !got.Equal(time.Date(2026, time.January, 15, 7, 0, 0, 0, time.UTC)) {
+		t.Fatalf("Base() = %v, want the input normalized to UTC", got)
+	}
+	if got := c.WallTime(); !got.Equal(c.Base()) {
+		t.Fatalf("WallTime() at t=0 = %v, want %v", got, c.Base())
+	}
+	if err := c.AdvanceBy(10*time.Millisecond + 250*time.Microsecond); err != nil {
+		t.Fatal(err)
+	}
+	want := c.Base().Add(10*time.Millisecond + 250*time.Microsecond)
+	if got := c.WallTime(); !got.Equal(want) {
+		t.Fatalf("WallTime() = %v, want %v", got, want)
+	}
+	// The offset is independent of the anchor.
+	if c.Now() != 10*time.Millisecond+250*time.Microsecond {
+		t.Fatalf("Now() = %v, want the accumulated offset", c.Now())
+	}
+}
+
+func TestDefaultClockAnchoredAtEpoch(t *testing.T) {
+	c := New()
+	if !c.WallTime().Equal(time.Unix(0, 0)) {
+		t.Fatalf("default WallTime() = %v, want the Unix epoch", c.WallTime())
+	}
+}

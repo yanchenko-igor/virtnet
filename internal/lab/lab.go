@@ -37,7 +37,17 @@ type Lab struct {
 	ifaceOwner map[*fabric.Interface]*machine.Machine
 }
 
-// New15 builds the reference topology:
+// New15 builds the reference topology with the clock anchored at the Unix
+// epoch (the `date` command prints 1970-01-01T00:00:00Z at t=0). Use New15At
+// to anchor the simulation at a specific start timestamp.
+func New15() (*Lab, error) {
+	return New15At(time.Unix(0, 0))
+}
+
+// New15At builds the reference topology with the virtual clock anchored at the
+// given start timestamp. Elapsed virtual time advances it: `date` reads
+// start.Add(clock.Now()). The anchor is normalized to UTC so snapshots and
+// digests stay deterministic.
 //
 //	PC1 10.0.0.10 ─┐
 //	               ├─SW─ R1 eth0 10.0.0.1 ── R1 eth1 10.0.1.1 ── PC3 10.0.1.10
@@ -45,9 +55,9 @@ type Lab struct {
 //
 // Every link is tapped into the lab's capture. The capture retains every
 // traversal.
-func New15() (*Lab, error) {
+func New15At(start time.Time) (*Lab, error) {
 	l := &Lab{
-		Clock:      clock.New(),
+		Clock:      clock.NewAt(start),
 		Capture:    capture.New(0),
 		ifaceOwner: make(map[*fabric.Interface]*machine.Machine),
 	}
