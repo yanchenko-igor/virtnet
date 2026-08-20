@@ -159,6 +159,10 @@ func (s *Stack) Ping(dst netip.Addr) (PingResult, error) {
 		id := s.nextEcho
 		s.nextEcho++
 		t0 := s.clock.Now()
+		// Simulate minimal local processing (1ms).
+		if err := s.clock.AdvanceBy(time.Millisecond); err != nil {
+			return PingResult{}, err
+		}
 		reply := icmp.NewEchoReply(id, 1, []byte("virtnet"))
 		return PingResult{Reply: reply, RTT: s.clock.Now() - t0}, nil
 	}
