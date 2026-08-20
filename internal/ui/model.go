@@ -78,9 +78,11 @@ func (m *Model) Submit() {
 	if p != nil {
 		if s := p.Stdout.String(); s != "" {
 			mach.Console.Write(s)
+			p.Stdout.Reset()
 		}
 		if s := p.Stderr.String(); s != "" {
 			mach.Console.Write(s)
+			p.Stderr.Reset()
 		}
 	}
 	mach.Console.WritePrompt()
