@@ -27,6 +27,10 @@ func (m Model) View() string {
 	if m.showPkt {
 		body = m.packetPanel(bodyH)
 	}
+	// Ensure body ends with newline before status bar
+	if !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
 	b.WriteString(body)
 	b.WriteString(m.statusBar())
 	return b.String()
@@ -121,12 +125,12 @@ func (m Model) statusBar() string {
 	avail := m.width - used
 
 	var hints string
-	if avail >= 50 {
-		hints = "Tab switch · Enter run · ctrl+p packets · ctrl+c quit"
-	} else if avail >= 30 {
+	if avail >= 55 {
 		hints = "Tab · Enter · ctrl+p · ctrl+c quit"
-	} else if avail >= 20 {
+	} else if avail >= 35 {
 		hints = "Tab · Enter · ctrl+c"
+	} else if avail >= 20 {
+		hints = "ctrl+c"
 	} else {
 		hints = ""
 	}

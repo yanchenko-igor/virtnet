@@ -1,0 +1,55 @@
+Script started on 2026-08-20 15:49:32-03:00 [TERM="xterm-256color" TTY="/dev/pts/23" COLUMNS="169" LINES="42"]
+[1m[7m%[27m[1m[0m                                                                                                                                                                         ]0;igor@basilisk: ~/Projects/virtnet[0m[27m[24m[J[1m[31m[39m[0m[1m[34migor[39m[0m@basilisk [1m~/Projects/virtnet [0m[35m([39mgit[35m)[33m-[35m[[32mmaster[35m][39m % [K[?1h=[?2004hscriptgo run ./cmd/virtnet -start "1990-01-15T08:00:00Z" -topology internal/topology/testdata/dns_test.json[?1l>[?2004l
+]0;igor@basilisk: go run ./cmd/virtnet -start "1990-01-15T08:00:00Z" -topology ]11;?\[6n[?25l[?1049h[2J[H[?25l[?2004h[H[DNS1] PC1   —  SW ── R1 ── PC3[K
+dns1$ ▌[K
+T=0s | tab 1/2 dns1 | frames 0 | Tab switch · Enter run · ctrl+p packets · ctrl+c quit[K[3;H[H
+dns1$ n▌[K
+[3;H[H
+dns1$ ns▌[K
+[3;H[H
+dns1$ nsl▌[K
+[3;H[H
+dns1$ nslo▌[K
+[3;H[H
+dns1$ nsloo▌[K
+[3;H[H
+dns1$ nslook▌[K
+[3;H[H
+dns1$ nslooku▌[K
+[3;H[H
+dns1$ nslookup▌[K
+[3;H[H
+dns1$ nslookup ▌[K
+[3;H[H
+dns1$ nslookup e▌[K
+[3;H[H
+dns1$ nslookup ex▌[K
+[3;H[H
+dns1$ nslookup exa▌[K
+[3;H[H
+dns1$ nslookup exam▌[K
+[3;H[H
+dns1$ nslookup examp▌[K
+[3;H[H
+dns1$ nslookup exampl▌[K
+[3;H[H
+dns1$ nslookup example▌[K
+[3;H[H
+dns1$ nslookup example.▌[K
+[3;H[H
+dns1$ nslookup example.c▌[K
+[3;H[H
+dns1$ nslookup example.co▌[K
+[3;H[H
+dns1$ nslookup example.com▌[K
+[3;H[H
+dns1$ nslookup example.com[K
+Server:		127.0.0.1[K
+Address:	127.0.0.1#53[K
+[K
+Name:	example.com[K
+Address: 10.0.0.10[K
+dns1$ ▌[K
+T=0s | tab 1/2 dns1 | frames 0 | Tab switch · Enter run · ctrl+p packets · ctrl+c quit[K[9;H[2K[?2004l[?25h[?1002l[?1003l[?1006l[?1049l[?25h[1m[7m%[27m[1m[0m                                                                                                                                                                         ]0;igor@basilisk: ~/Projects/virtnet[0m[27m[24m[J[1m[31m[39m[0m[1m[34migor[39m[0m@basilisk [1m~/Projects/virtnet [0m[35m([39mgit[35m)[33m-[35m[[32mmaster[35m][39m % [K[?1h=[?2004heexit[?1l>[?2004l
+]0;igor@basilisk: exit
+Script done on 2026-08-20 15:49:50-03:00 [COMMAND_EXIT_CODE="0"]
