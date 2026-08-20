@@ -138,9 +138,20 @@ func (m *Machine) RegisterService(name string, config map[string]interface{}) er
 		return fmt.Errorf("unknown service: %s", name)
 	}
 	svc := factory(config)
+	// Inject filesystem for HTTP service
+	if httpSvc, ok := svc.(interface{ SetFS(services.FS) }); ok {
+		httpSvc.SetFS(m.FS)
+	}
 	for _, sp := range svc.Ports() {
 		m.services[sp.Port] = svc
 		m.Stack.RegisterService(sp.Port, ipv4.Protocol(sp.Proto), svc)
+		// For TCP services, create a listener to accept connections
+		if sp.Proto == uint8(ipv4.ProtoTCP) {
+			_, err := m.Stack.Listen(sp.Port)
+			if err != nil {
+				return fmt.Errorf("failed to create listener for service %s on port %d: %w", name, sp.Port, err)
+			}
+		}
 	}
 	return nil
 }

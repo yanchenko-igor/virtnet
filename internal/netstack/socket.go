@@ -572,30 +572,37 @@ func (s *Stack) handleTCP(pkt ipv4.Packet) error {
 
 	key := services.ServiceKey{Port: seg.DstPort, Proto: uint8(ipv4.ProtoTCP)}
 	if svc, ok := s.services[key]; ok {
-		ctx := services.ServiceContext{
-			Machine: nil,
-			Stack:   s,
-			SrcAddr: pkt.Src,
-			SrcPort: seg.SrcPort,
-			DstAddr: pkt.Dst,
-			DstPort: seg.DstPort,
-			Proto:   uint8(ipv4.ProtoTCP),
-			Clock:   s.clock,
-		}
-		resp, err := svc.HandleRequest(ctx, services.ServiceRequest{Payload: seg.Payload})
-		if err == nil && len(resp) > 0 {
-			rstSeg := &tcp.Segment{
-				SrcPort: seg.DstPort,
-				DstPort: seg.SrcPort,
-				Seq:     seg.Ack,
-				Ack:     seg.Seq + uint32(len(seg.Payload)),
-				Flags:   tcp.FlagACK | tcp.FlagPSH,
-				Window:  65535,
-				Payload: resp,
+		// Only call service for established connections with data (PSH flag) or data payload
+		tcpKey := tcpKey{localAddr: pkt.Dst, localPort: seg.DstPort, remoteAddr: pkt.Src, remotePort: seg.SrcPort}
+		if conn, ok := s.tcpConns[tcpKey]; ok && conn.State() == tcp.StateEstablished {
+			// Only process data segments (with PSH flag or non-empty payload that's not just ACK)
+			if len(seg.Payload) > 0 && (seg.Flags&tcp.FlagPSH != 0 || len(seg.Payload) > 0) {
+				ctx := services.ServiceContext{
+					Machine: nil,
+					Stack:   s,
+					SrcAddr: pkt.Src,
+					SrcPort: seg.SrcPort,
+					DstAddr: pkt.Dst,
+					DstPort: seg.DstPort,
+					Proto:   uint8(ipv4.ProtoTCP),
+					Clock:   s.clock,
+				}
+				resp, err := svc.HandleRequest(ctx, services.ServiceRequest{Payload: seg.Payload})
+				if err == nil && len(resp) > 0 {
+					rstSeg := &tcp.Segment{
+						SrcPort: seg.DstPort,
+						DstPort: seg.SrcPort,
+						Seq:     seg.Ack,
+						Ack:     seg.Seq + uint32(len(seg.Payload)),
+						Flags:   tcp.FlagACK | tcp.FlagPSH,
+						Window:  65535,
+						Payload: resp,
+					}
+					_ = s.sendSegment(pkt.Src, rstSeg)
+				}
+				return err
 			}
-			_ = s.sendSegment(pkt.Src, rstSeg)
 		}
-		return err
 	}
 
 	tcpKey := tcpKey{localAddr: pkt.Dst, localPort: seg.DstPort, remoteAddr: pkt.Src, remotePort: seg.SrcPort}

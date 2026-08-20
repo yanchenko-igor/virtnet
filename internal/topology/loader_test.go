@@ -174,3 +174,63 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+func TestBuildHTTPTopology(t *testing.T) {
+	data, err := os.ReadFile("testdata/http_test.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var topo Topology
+	if err := json.Unmarshal(data, &topo); err != nil {
+		t.Fatal(err)
+	}
+
+	l, _, _, err := topo.BuildLab()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify 2 machines
+	if len(l.Machines) != 2 {
+		t.Fatalf("expected 2 machines, got %d", len(l.Machines))
+	}
+
+	web1 := l.Machine("web1")
+	if web1 == nil {
+		t.Fatal("web1 not found")
+	}
+	pc1 := l.Machine("pc1")
+	if pc1 == nil {
+		t.Fatal("pc1 not found")
+	}
+
+	// Test curl from pc1 to web1
+	out, err := pc1.RunCommand("curl http://10.0.0.80/")
+	if err != nil {
+		t.Fatalf("curl failed: %v", err)
+	}
+	if !strings.Contains(out, "Hello from web1") {
+		t.Errorf("curl output missing expected content:\n%s", out)
+	}
+	if !strings.Contains(out, "200 OK") {
+		t.Errorf("curl output missing 200 OK:\n%s", out)
+	}
+
+	// Test curl for test.txt
+	out, err = pc1.RunCommand("curl http://10.0.0.80/test.txt")
+	if err != nil {
+		t.Fatalf("curl test.txt failed: %v", err)
+	}
+	if !strings.Contains(out, "Test file content") {
+		t.Errorf("curl test.txt missing content:\n%s", out)
+	}
+
+	// Test curl 404 - curl returns 0 exit code even for 404, but response contains 404
+	out, err = pc1.RunCommand("curl http://10.0.0.80/notfound.txt")
+	if err != nil {
+		t.Errorf("curl 404 unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "404 Not Found") {
+		t.Errorf("curl 404 missing 404:\n%s", out)
+	}
+}

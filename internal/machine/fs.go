@@ -70,8 +70,21 @@ func (fs *FS) CreateDir(path string) error {
 	return nil
 }
 
+// createParents creates all parent directories for a file path.
+func (fs *FS) createParents(path string) error {
+	dirPath := path[:strings.LastIndex(path, "/")]
+	if dirPath == "" {
+		dirPath = "/"
+	}
+	return fs.CreateDir(dirPath)
+}
+
 // WriteFile writes data to path, creating the file (and parents) as needed.
 func (fs *FS) WriteFile(path string, data []byte) error {
+	// Create parent directories if they don't exist
+	if err := fs.createParents(path); err != nil {
+		return err
+	}
 	dir, name, err := fs.split(path)
 	if err != nil {
 		return err

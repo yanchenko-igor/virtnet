@@ -18,6 +18,7 @@ type appFunc func(m *Machine, args []string) *Process
 var apps = map[string]appFunc{
 	"arp":      cmdARP,
 	"cat":      cmdCat,
+	"curl":     cmdCurl,
 	"date":     cmdDate,
 	"dig":      cmdDig,
 	"echo":     cmdEcho,
@@ -38,6 +39,7 @@ func cmdHelp(m *Machine, args []string) *Process {
 	p.writeOut(`Available commands:
   arp        show the ARP cache
   cat FILE   print a file
+  curl URL   HTTP client
   date       print the virtual date and time
   dig [@SERVER] NAME [TYPE]   DNS lookup
   echo TEXT  print text
@@ -489,6 +491,73 @@ func cmdDig(m *Machine, args []string) *Process {
 
 func prefixMask(pfx netip.Prefix) string {
 	return netMaskString(pfx.Bits())
+}
+
+func cmdCurl(m *Machine, args []string) *Process {
+	p := newProcess(m, "curl", args)
+	if len(args) < 1 {
+		p.writeErr("Usage: curl URL\n")
+		p.exit(1)
+		return p
+	}
+	url := args[0]
+
+	// Simple URL parsing: http://host:port/path
+	if !strings.HasPrefix(url, "http://") {
+		p.writeErr("curl: only http:// URLs supported\n")
+		p.exit(1)
+		return p
+	}
+	url = url[7:] // strip http://
+
+	parts := strings.SplitN(url, "/", 2)
+	hostPort := parts[0]
+	path := "/"
+	if len(parts) > 1 {
+		path = "/" + parts[1]
+	}
+
+	hostParts := strings.Split(hostPort, ":")
+	host := hostParts[0]
+	port := 80
+	if len(hostParts) > 1 {
+		fmt.Sscanf(hostParts[1], "%d", &port)
+	}
+
+	// Resolve host via DNS if needed
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		p.writeErr(fmt.Sprintf("curl: could not resolve host: %s\n", host))
+		p.exit(1)
+		return p
+	}
+
+	// Connect via TCP
+	conn, err := m.Stack.Dial(addr, uint16(port))
+	if err != nil {
+		p.writeErr(fmt.Sprintf("curl: connect failed: %v\n", err))
+		p.exit(1)
+		return p
+	}
+
+	// Send HTTP GET request
+	request := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host)
+	if _, err := conn.Write([]byte(request)); err != nil {
+		p.writeErr(fmt.Sprintf("curl: write failed: %v\n", err))
+		_ = conn.Close()
+		p.exit(1)
+		return p
+	}
+
+	// Read response
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if n > 0 {
+		p.writeOut(string(buf[:n]))
+	}
+	_ = err
+	_ = conn.Close()
+	return p
 }
 
 func netMaskString(bits int) string {

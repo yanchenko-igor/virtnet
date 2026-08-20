@@ -96,6 +96,13 @@ func (t *Topology) BuildLab() (*lab.Lab, *fabric.Switch, *router.Router, error) 
 				return nil, nil, nil, fmt.Errorf("machine %s service %s: %w", m.ID, svcDef.Type, err)
 			}
 		}
+		// Add default web content for HTTP service
+		for _, svcDef := range m.Services {
+			if svcDef.Type == "http" {
+				_ = mach.FS.WriteFile("/var/www/index.html", []byte("<html><body><h1>Hello from "+m.Host+"</h1></body></html>"))
+				_ = mach.FS.WriteFile("/var/www/test.txt", []byte("Test file content"))
+			}
+		}
 		machines[m.ID] = mach
 		machineInterfaces[fmt.Sprintf("machine:%s:eth0", m.ID)] = iface
 	}

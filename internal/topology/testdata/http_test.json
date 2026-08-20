@@ -1,0 +1,33 @@
+{
+  "machines": [
+    {
+      "id": "web1",
+      "host": "web1",
+      "ip": "10.0.0.80/24",
+      "mac": "02:00:00:00:00:80",
+      "services": [
+        {
+          "type": "http",
+          "port": 80,
+          "config": {
+            "document_root": "/var/www"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pc1",
+      "host": "pc1",
+      "ip": "10.0.0.10/24",
+      "mac": "02:00:00:00:00:01",
+      "gateway": "10.0.0.1"
+    }
+  ],
+  "switches": [
+    { "id": "sw1" }
+  ],
+  "links": [
+    { "a": "machine:web1:eth0", "b": "switch:sw1:p1", "delay_ms": 10 },
+    { "a": "machine:pc1:eth0", "b": "switch:sw1:p2", "delay_ms": 10 }
+  ]
+}
