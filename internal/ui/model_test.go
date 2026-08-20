@@ -15,7 +15,9 @@ func newModel(t *testing.T) Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(l)
+	m := New(l)
+	nm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	return nm.(Model)
 }
 
 func update(t *testing.T, m Model, msg tea.Msg) Model {
