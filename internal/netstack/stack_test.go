@@ -130,6 +130,31 @@ func TestPingNoRoute(t *testing.T) {
 	}
 }
 
+func TestSelfPing(t *testing.T) {
+	c := clock.New()
+	iface := fabric.NewInterface("eth0", mustMAC(t, "02:00:00:00:00:01"))
+	pc1, err := New(c, iface, Config{Addr: mustPrefix(t, "10.0.0.10/24")})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Ping self - should succeed without ARP/fabric
+	res, err := pc1.Ping(mustAddr(t, "10.0.0.10"))
+	if err != nil {
+		t.Fatalf("self-ping failed: %v", err)
+	}
+	if res.Reply.Type != icmp.TypeEchoReply {
+		t.Errorf("reply type = %d, want EchoReply", res.Reply.Type)
+	}
+	if res.RTT < 0 {
+		t.Errorf("RTT = %v, want >= 0", res.RTT)
+	}
+	// RTT should be near-zero (just the command cost + stack overhead)
+	if res.RTT > time.Millisecond {
+		t.Errorf("self-ping RTT = %v, want < 1ms", res.RTT)
+	}
+}
+
 func TestNewRejectsNonIPv4(t *testing.T) {
 	c := clock.New()
 	iface := fabric.NewInterface("eth0", mustMAC(t, "02:00:00:00:00:01"))

@@ -154,6 +154,15 @@ func (s *Stack) AddRoute(pfx netip.Prefix, nextHop netip.Addr, iface string, met
 // Ping sends an ICMP echo request to dst and returns the reply synchronously.
 // The entire exchange — including ARP resolution — completes within this call.
 func (s *Stack) Ping(dst netip.Addr) (PingResult, error) {
+	// Self-ping: handle locally without ARP/fabric (loopback).
+	if dst == s.addr.Addr() {
+		id := s.nextEcho
+		s.nextEcho++
+		t0 := s.clock.Now()
+		reply := icmp.NewEchoReply(id, 1, []byte("virtnet"))
+		return PingResult{Reply: reply, RTT: s.clock.Now() - t0}, nil
+	}
+
 	id := s.nextEcho
 	s.nextEcho++
 	pe := &pendingEcho{dst: dst}
