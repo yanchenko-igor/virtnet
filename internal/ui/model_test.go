@@ -168,3 +168,49 @@ func TestPacketPanelShowsCapturedTraffic(t *testing.T) {
 		t.Error("capture empty after ping")
 	}
 }
+
+// TestStatusOnOwnLine guards against the status bar being glued to the input
+// line: the body and the status bar must be separate lines.
+func TestStatusOnOwnLine(t *testing.T) {
+	m := newModel(t)
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ping 10.0.0.20")})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	v := m.View()
+	if !strings.Contains(v, "pc1$ ▌\nT=") {
+		t.Errorf("status bar not on its own line:\n%s", v)
+	}
+	lines := strings.Split(v, "\n")
+	if !strings.HasPrefix(lines[len(lines)-1], "T=") {
+		t.Errorf("status bar is not the last line:\n%s", v)
+	}
+}
+
+// TestNoDoublePrompt guards against the transcript's trailing prompt being
+// rendered alongside the live input line's prompt.
+func TestNoDoublePrompt(t *testing.T) {
+	m := newModel(t)
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("echo test")})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	v := m.View()
+	if strings.Contains(v, "pc1$ pc1$") {
+		t.Errorf("double prompt rendered:\n%s", v)
+	}
+	if !strings.Contains(v, "test\npc1$ ▌") {
+		t.Errorf("missing expected single-prompt output:\n%s", v)
+	}
+}
+
+// TestEmptyConsoleRendersInputLine only: a fresh machine must not show a
+// stray blank line above the prompt.
+func TestEmptyConsoleRendersInputLine(t *testing.T) {
+	m := newModel(t)
+	v := m.View()
+	if !strings.Contains(v, "pc1$ ▌\nT=") {
+		t.Errorf("empty console must go straight to the input line:\n%s", v)
+	}
+	if strings.Contains(v, "\n\n") {
+		t.Errorf("empty console shows a stray blank line:\n%s", v)
+	}
+}

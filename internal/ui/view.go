@@ -27,7 +27,8 @@ func (m Model) View() string {
 	if m.showPkt {
 		body = m.packetPanel(bodyH)
 	}
-	b.WriteString(body)
+	b.WriteString(strings.TrimRight(body, "\n"))
+	b.WriteByte('\n')
 	b.WriteString(m.statusBar())
 	return b.String()
 }
@@ -51,6 +52,14 @@ func (m Model) consoleBody(height int) string {
 	mach := m.Active()
 	transcript := mach.Console.Transcript()
 	lines := strings.Split(strings.TrimSuffix(transcript, "\n"), "\n")
+	// HandleInput leaves a trailing prompt in the transcript; the live input
+	// line renders it again, so drop the redundant copy.
+	if len(lines) > 0 && lines[len(lines)-1] == mach.Console.Prompt() {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 1 && lines[0] == "" {
+		lines = nil
+	}
 	if len(lines) > height-1 {
 		lines = lines[len(lines)-(height-1):]
 	}
