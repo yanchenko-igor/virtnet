@@ -183,7 +183,8 @@ func TestQuitKeys(t *testing.T) {
 	}
 }
 
-// TestCtrlCInterruptsPing verifies Ctrl+C interrupts a running ping.
+// TestCtrlCInterruptsPing verifies Ctrl+C interrupts a running ping
+// and prints the statistics summary (like real ping).
 func TestCtrlCInterruptsPing(t *testing.T) {
 	m := newModel(t)
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ping -c 100 10.0.0.20")})
@@ -193,7 +194,7 @@ func TestCtrlCInterruptsPing(t *testing.T) {
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 
-	// Ctrl+C should interrupt
+	// Ctrl+C should interrupt and print summary
 	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlC})
 
 	transcript := m.Active().Console.Transcript()
@@ -203,6 +204,13 @@ func TestCtrlCInterruptsPing(t *testing.T) {
 	}
 	if !strings.Contains(transcript, "64 bytes from") {
 		t.Errorf("missing ping results before interrupt:\n%s", transcript)
+	}
+	// Should have summary after interrupt
+	if !strings.Contains(transcript, "ping statistics") {
+		t.Errorf("missing ping statistics after interrupt:\n%s", transcript)
+	}
+	if !strings.Contains(transcript, "packets transmitted") {
+		t.Errorf("missing packets transmitted in summary:\n%s", transcript)
 	}
 	// Should have prompt back after interrupt
 	if !strings.HasSuffix(strings.TrimRight(transcript, "\n"), "pc1$ ") {

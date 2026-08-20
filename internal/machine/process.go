@@ -43,8 +43,9 @@ type Process struct {
 	ExitCode   int
 	Foreground bool // if true, execute() drives to completion
 
-	m    *Machine
-	step func(m *Machine, p *Process)
+	m         *Machine
+	step      func(m *Machine, p *Process)
+	interrupt func(m *Machine, p *Process) // called on Ctrl+C before exit
 
 	// Data carries app-specific state between steps (e.g. a listening socket).
 	Data any

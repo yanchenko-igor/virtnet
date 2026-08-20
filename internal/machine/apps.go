@@ -261,25 +261,29 @@ func cmdPing(m *Machine, args []string) *Process {
 	// completion for RunCommand/HandleInput compatibility; the UI can
 	// override for incremental rendering.
 	p.Foreground = true
-	p.Data = &pingState{
-		addr:    addr,
-		count:   count,
-		sent:    0,
-		recv:    0,
-		started: false,
+	st := &pingState{
+		addr:      addr,
+		count:     count,
+		sent:      0,
+		recv:      0,
+		started:   false,
+		startTime: m.clock.Now(),
 	}
+	p.Data = st
 	p.step = pingStep
+	p.interrupt = pingInterrupt // print summary on Ctrl+C
 	p.writeOut(fmt.Sprintf("PING %s (%s) 56 bytes of data.\n", addr, addr))
 	p.waitForData() // park; execute() will drive to completion
 	return p
 }
 
 type pingState struct {
-	addr    netip.Addr
-	count   int
-	sent    int
-	recv    int
-	started bool
+	addr      netip.Addr
+	count     int
+	sent      int
+	recv      int
+	started   bool
+	startTime time.Duration // virtual time when ping started
 }
 
 func pingStep(m *Machine, p *Process) {
@@ -296,8 +300,8 @@ func pingStep(m *Machine, p *Process) {
 			loss = 100.0 * float64(st.count-st.recv) / float64(st.count)
 		}
 		p.writeOut(fmt.Sprintf("--- %s ping statistics ---\n", st.addr))
-		p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss\n",
-			st.count, st.recv, loss))
+		p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss, time %.0fms\n",
+			st.count, st.recv, loss, float64(m.clock.Now()-st.startTime)/float64(time.Millisecond)))
 		if st.recv < st.count {
 			p.exit(1)
 		} else {
@@ -316,6 +320,18 @@ func pingStep(m *Machine, p *Process) {
 	}
 	// Park for next Step (virtual time already advanced by Ping's RTT)
 	p.waitForData()
+}
+
+// pingInterrupt prints ping statistics when Ctrl+C is pressed.
+func pingInterrupt(m *Machine, p *Process) {
+	st := p.Data.(*pingState)
+	loss := 100.0
+	if st.count > 0 {
+		loss = 100.0 * float64(st.count-st.recv) / float64(st.count)
+	}
+	p.writeOut(fmt.Sprintf("\n--- %s ping statistics ---\n", st.addr))
+	p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss, time %.0fms\n",
+		st.sent, st.recv, loss, float64(m.clock.Now()-st.startTime)/float64(time.Millisecond)))
 }
 
 func cmdNC(m *Machine, args []string) *Process {

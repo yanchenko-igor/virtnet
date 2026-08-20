@@ -192,7 +192,7 @@ func (m *Machine) StepForeground() bool {
 }
 
 // InterruptForeground terminates any running foreground process (e.g. ping)
-// by marking it Exited and copying remaining output.
+// by calling its interrupt hook (which can print statistics) and copying output.
 func (m *Machine) InterruptForeground() {
 	for _, pid := range sortedPID(m.procs) {
 		p := m.procs[pid]
@@ -200,7 +200,9 @@ func (m *Machine) InterruptForeground() {
 			continue
 		}
 		if p.State == Waiting || p.State == Running {
-			p.writeOut("\n")
+			if p.interrupt != nil {
+				p.interrupt(m, p) // let process print summary
+			}
 			p.exit(130) // SIGINT
 		}
 	}
