@@ -256,27 +256,66 @@ func cmdPing(m *Machine, args []string) *Process {
 		return p
 	}
 
+	// Ping runs as a multi-step process: each Step() sends one ping, prints
+	// the result, and parks. Foreground=true makes execute() drive it to
+	// completion for RunCommand/HandleInput compatibility; the UI can
+	// override for incremental rendering.
+	p.Foreground = true
+	p.Data = &pingState{
+		addr:    addr,
+		count:   count,
+		sent:    0,
+		recv:    0,
+		started: false,
+	}
+	p.step = pingStep
 	p.writeOut(fmt.Sprintf("PING %s (%s) 56 bytes of data.\n", addr, addr))
-	received := 0
-	for i := 1; i <= count; i++ {
-		res, err := m.Stack.Ping(addr)
-		if err != nil {
-			p.writeOut(fmt.Sprintf("Request timeout for icmp_seq %d\n", i))
-			continue
-		}
-		received++
-		p.writeOut(fmt.Sprintf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", addr, i, 64, float64(res.RTT)/float64(time.Millisecond)))
-	}
-	p.writeOut(fmt.Sprintf("--- %s ping statistics ---\n", addr))
-	loss := 100.0
-	if count > 0 {
-		loss = 100.0 * float64(count-received) / float64(count)
-	}
-	p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss\n", count, received, loss))
-	if received < count {
-		p.exit(1)
-	}
+	p.waitForData() // park; execute() will drive to completion
 	return p
+}
+
+type pingState struct {
+	addr    netip.Addr
+	count   int
+	sent    int
+	recv    int
+	started bool
+}
+
+func pingStep(m *Machine, p *Process) {
+	st := p.Data.(*pingState)
+	if !st.started {
+		st.started = true
+	} else {
+		// Subsequent steps: just continue (virtual time already advanced by Ping)
+	}
+	if st.sent >= st.count {
+		// All sent: print summary and exit
+		loss := 100.0
+		if st.count > 0 {
+			loss = 100.0 * float64(st.count-st.recv) / float64(st.count)
+		}
+		p.writeOut(fmt.Sprintf("--- %s ping statistics ---\n", st.addr))
+		p.writeOut(fmt.Sprintf("%d packets transmitted, %d received, %.1f%% packet loss\n",
+			st.count, st.recv, loss))
+		if st.recv < st.count {
+			p.exit(1)
+		} else {
+			p.exit(0)
+		}
+		return
+	}
+	st.sent++
+	res, err := m.Stack.Ping(st.addr)
+	if err != nil {
+		p.writeOut(fmt.Sprintf("Request timeout for icmp_seq %d\n", st.sent))
+	} else {
+		st.recv++
+		p.writeOut(fmt.Sprintf("64 bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
+			st.addr, st.sent, 64, float64(res.RTT)/float64(time.Millisecond)))
+	}
+	// Park for next Step (virtual time already advanced by Ping's RTT)
+	p.waitForData()
 }
 
 func cmdNC(m *Machine, args []string) *Process {

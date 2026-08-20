@@ -32,15 +32,16 @@ func (s ProcessState) String() string {
 // wakeup deadline in virtual time, and a step hook. Nothing blocks the host
 // thread; the machine drives processes when the shell/UI steps the machine.
 type Process struct {
-	Pid      int
-	Name     string
-	Args     []string
-	State    ProcessState
-	Stdin    *bytes.Buffer
-	Stdout   *BoundedBuffer
-	Stderr   *BoundedBuffer
-	WakeupAt time.Duration // virtual-clock deadline; zero = no time-based wakeup
-	ExitCode int
+	Pid        int
+	Name       string
+	Args       []string
+	State      ProcessState
+	Stdin      *bytes.Buffer
+	Stdout     *BoundedBuffer
+	Stderr     *BoundedBuffer
+	WakeupAt   time.Duration // virtual-clock deadline; zero = no time-based wakeup
+	ExitCode   int
+	Foreground bool // if true, execute() drives to completion
 
 	m    *Machine
 	step func(m *Machine, p *Process)

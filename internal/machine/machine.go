@@ -146,8 +146,22 @@ func (m *Machine) execute(line string) *Process {
 	p := app(m, argv[1:])
 	if p.State == Waiting {
 		m.procs[p.Pid] = p
+		if p.Foreground {
+			m.driveToCompletion(p)
+		}
 	}
 	return p
+}
+
+// driveToCompletion steps a foreground waiting process until it exits.
+// Used by execute() for commands that yield (like incremental ping) but
+// should appear synchronous to callers (RunCommand, HandleInput).
+func (m *Machine) driveToCompletion(p *Process) {
+	for p.State == Waiting && p.step != nil {
+		p.State = Running
+		p.step(m, p)
+	}
+	m.reap()
 }
 
 func (m *Machine) shell() *Process {
