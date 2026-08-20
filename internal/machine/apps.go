@@ -509,6 +509,7 @@ func cmdCurl(m *Machine, args []string) *Process {
 	// Parse flags
 	includeHeaders := false
 	headOnly := false
+	verbose := false
 	url := ""
 	for _, arg := range args {
 		switch arg {
@@ -517,7 +518,7 @@ func cmdCurl(m *Machine, args []string) *Process {
 		case "-I", "--head":
 			headOnly = true
 		case "-v", "--verbose":
-			// verbose not fully implemented yet
+			verbose = true
 		default:
 			if strings.HasPrefix(arg, "http://") {
 				url = arg
@@ -574,6 +575,14 @@ func cmdCurl(m *Machine, args []string) *Process {
 		method = "HEAD"
 	}
 	request := fmt.Sprintf("%s %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", method, path, host)
+	if verbose {
+		p.writeOut(fmt.Sprintf("* Trying %s:%d...\n", host, port))
+		p.writeOut(fmt.Sprintf("* Connected to %s (%s) port %d\n", host, addr, port))
+		p.writeOut(fmt.Sprintf("> %s %s HTTP/1.1\n", method, path))
+		p.writeOut(fmt.Sprintf("> Host: %s\n", host))
+		p.writeOut("> Connection: close\n")
+		p.writeOut(">\n")
+	}
 	if _, err := conn.Write([]byte(request)); err != nil {
 		p.writeErr(fmt.Sprintf("curl: write failed: %v\n", err))
 		_ = conn.Close()
@@ -586,6 +595,15 @@ func cmdCurl(m *Machine, args []string) *Process {
 	n, err := conn.Read(buf)
 	if n > 0 {
 		response := string(buf[:n])
+		if verbose {
+			// Print response headers
+			if idx := strings.Index(response, "\r\n\r\n"); idx >= 0 {
+				headers := response[:idx]
+				for _, line := range strings.Split(headers, "\r\n") {
+					p.writeOut(fmt.Sprintf("< %s\n", line))
+				}
+			}
+		}
 		// Extract body from HTTP response (skip headers)
 		if idx := strings.Index(response, "\r\n\r\n"); idx >= 0 {
 			headers := response[:idx+4]
