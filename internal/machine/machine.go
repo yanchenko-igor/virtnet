@@ -3,6 +3,7 @@ package machine
 import (
 	"bytes"
 	"fmt"
+	"net/netip"
 	"sort"
 	"strings"
 	"time"
@@ -154,6 +155,60 @@ func (m *Machine) RegisterService(name string, config map[string]interface{}) er
 		}
 	}
 	return nil
+}
+
+// resolveHost resolves a hostname to an IP address using the local DNS service
+func (m *Machine) resolveHost(name string) (netip.Addr, error) {
+	// Try parsing as IP first
+	if addr, err := netip.ParseAddr(name); err == nil {
+		return addr, nil
+	}
+
+	// Create a DNS query message
+	query := services.DNSMessage{
+		ID:      uint16(m.clock.Now().Nanoseconds() & 0xFFFF),
+		Flags:   0x0100, // RD=1 (recursion desired)
+		QDCount: 1,
+		Questions: []services.DNSQuestion{
+			{Name: name, Type: services.TypeA, Class: services.ClassIN},
+		},
+	}
+
+	queryBytes := query.Pack()
+
+	// Send DNS query via UDP to local DNS service (127.0.0.1:53)
+	sock, err := m.Stack.ListenUDP(0)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("failed to create UDP socket: %w", err)
+	}
+	defer sock.Close()
+
+	if err := sock.SendTo(netip.MustParseAddr("127.0.0.1"), 53, queryBytes); err != nil {
+		return netip.Addr{}, fmt.Errorf("failed to send DNS query: %w", err)
+	}
+
+	// Wait for response
+	_, _, data, ok := sock.RecvFrom()
+	if !ok {
+		return netip.Addr{}, fmt.Errorf("no response from DNS server")
+	}
+
+	// Parse response
+	msg, err := services.ParseDNSMessage(data)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("failed to parse DNS response: %w", err)
+	}
+
+	// Extract A record from answer
+	for _, ans := range msg.Answers {
+		if ans.Type == services.TypeA {
+			if len(ans.Data) == 4 {
+				return netip.AddrFrom4([4]byte{ans.Data[0], ans.Data[1], ans.Data[2], ans.Data[3]}), nil
+			}
+		}
+	}
+
+	return netip.Addr{}, fmt.Errorf("no A record found for %s", name)
 }
 
 // commandCost is the simulated CPU cost of executing one shell command:

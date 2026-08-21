@@ -244,12 +244,12 @@ func (d *DNSService) HandleRequest(ctx ServiceContext, req ServiceRequest) ([]by
 }
 
 func (d *DNSService) handleUDP(ctx ServiceContext, payload []byte) ([]byte, error) {
-	msg, err := parseDNSMessage(payload)
+	msg, err := ParseDNSMessage(payload)
 	if err != nil {
 		return nil, err
 	}
 	resp := d.processQuery(ctx, msg)
-	return resp.pack(), nil
+	return resp.Pack(), nil
 }
 
 func (d *DNSService) handleTCP(ctx ServiceContext, payload []byte) ([]byte, error) {
@@ -260,12 +260,12 @@ func (d *DNSService) handleTCP(ctx ServiceContext, payload []byte) ([]byte, erro
 	if len(payload)-2 < int(length) {
 		return nil, fmt.Errorf("dns: TCP message truncated")
 	}
-	msg, err := parseDNSMessage(payload[2 : 2+length])
+	msg, err := ParseDNSMessage(payload[2 : 2+length])
 	if err != nil {
 		return nil, err
 	}
 	resp := d.processQuery(ctx, msg)
-	data := resp.pack()
+	data := resp.Pack()
 	out := make([]byte, 2+len(data))
 	binary.BigEndian.PutUint16(out[:2], uint16(len(data)))
 	copy(out[2:], data)
@@ -291,7 +291,7 @@ type DNSQuestion struct {
 	Class uint16
 }
 
-func parseDNSMessage(data []byte) (DNSMessage, error) {
+func ParseDNSMessage(data []byte) (DNSMessage, error) {
 	if len(data) < 12 {
 		return DNSMessage{}, fmt.Errorf("dns: message too short")
 	}
@@ -363,7 +363,7 @@ func parseName(data []byte, offset int) (string, int, error) {
 	return strings.Join(labels, "."), offset - origOffset, nil
 }
 
-func (msg *DNSMessage) pack() []byte {
+func (msg *DNSMessage) Pack() []byte {
 	var buf []byte
 	buf = append(buf, encodeUint16(msg.ID)...)
 	buf = append(buf, encodeUint16(msg.Flags)...)
@@ -377,18 +377,18 @@ func (msg *DNSMessage) pack() []byte {
 		buf = append(buf, encodeUint16(q.Class)...)
 	}
 	for _, r := range msg.Answers {
-		buf = append(buf, r.pack()...)
+		buf = append(buf, r.Pack()...)
 	}
 	for _, r := range msg.Authority {
-		buf = append(buf, r.pack()...)
+		buf = append(buf, r.Pack()...)
 	}
 	for _, r := range msg.Additional {
-		buf = append(buf, r.pack()...)
+		buf = append(buf, r.Pack()...)
 	}
 	return buf
 }
 
-func (r Record) pack() []byte {
+func (r Record) Pack() []byte {
 	var buf []byte
 	buf = append(buf, encodeName(r.Name)...)
 	buf = append(buf, encodeUint16(r.Type)...)
@@ -479,7 +479,7 @@ func (d *DNSService) queryAndFollow(ctx ServiceContext, serverIP netip.Addr, nam
 		return nil
 	}
 	
-	msg, err := parseDNSMessage(resp)
+	msg, err := ParseDNSMessage(resp)
 	if err != nil {
 		return nil
 	}
@@ -549,7 +549,7 @@ func (d *DNSService) buildQuery(name string, qtype uint16) []byte {
 			{Name: name, Type: qtype, Class: ClassIN},
 		},
 	}
-	return msg.pack()
+	return msg.Pack()
 }
 
 func (d *DNSService) sendUDPQuery(ctx ServiceContext, serverIP netip.Addr, query []byte) ([]byte, error) {

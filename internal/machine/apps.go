@@ -553,12 +553,16 @@ func cmdCurl(m *Machine, args []string) *Process {
 		fmt.Sscanf(hostParts[1], "%d", &port)
 	}
 
-	// Resolve host via DNS if needed
+	// Resolve host via DNS if it's not an IP address
 	addr, err := netip.ParseAddr(host)
 	if err != nil {
-		p.writeErr(fmt.Sprintf("curl: could not resolve host: %s\n", host))
-		p.exit(1)
-		return p
+		// Try DNS resolution
+		addr, err = m.resolveHost(host)
+		if err != nil {
+			p.writeErr(fmt.Sprintf("curl: could not resolve host: %s\n", host))
+			p.exit(1)
+			return p
+		}
 	}
 
 	// Connect via TCP
