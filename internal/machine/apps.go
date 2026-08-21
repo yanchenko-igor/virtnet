@@ -358,7 +358,7 @@ func cmdNC(m *Machine, args []string) *Process {
 		p.exit(1)
 		return p
 	}
-	addr, err := netip.ParseAddr(args[0])
+	addr, err := m.resolveHost(args[0])
 	if err != nil {
 		p.writeErr(fmt.Sprintf("nc: unknown host %s\n", args[0]))
 		p.exit(1)
