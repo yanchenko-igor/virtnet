@@ -169,13 +169,26 @@ func (m *Machine) SetDNSServer(ipStr string) error {
 }
 
 // resolveHost resolves a hostname to an IP address using the configured DNS servers
+// First checks local DNS service if available, then tries configured DNS servers
 func (m *Machine) resolveHost(name string) (netip.Addr, error) {
 	// Try parsing as IP first
 	if addr, err := netip.ParseAddr(name); err == nil {
 		return addr, nil
 	}
 
-	// If no DNS servers configured, fail
+	// First, check if there's a local DNS service running on port 53
+	if dnsSvc, ok := m.services[53]; ok {
+		if dnsSvc, ok := dnsSvc.(*services.DNSService); ok {
+			recs := dnsSvc.ResolveLocal(name, services.TypeA)
+			if len(recs) > 0 {
+				if len(recs[0].Data) == 4 {
+					return netip.AddrFrom4([4]byte{recs[0].Data[0], recs[0].Data[1], recs[0].Data[2], recs[0].Data[3]}), nil
+				}
+			}
+		}
+	}
+
+	// If no local DNS service or no answer, try configured DNS servers
 	if len(m.dnsServers) == 0 {
 		return netip.Addr{}, fmt.Errorf("no DNS servers configured")
 	}

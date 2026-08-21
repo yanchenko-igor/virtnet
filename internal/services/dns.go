@@ -452,6 +452,28 @@ func (d *DNSService) lookup(ctx ServiceContext, name string, qtype uint16) []Rec
 	return nil
 }
 
+// ResolveLocal resolves a name using only authoritative zones (no recursion)
+// This is used by the local machine when it hosts the DNS service
+func (d *DNSService) ResolveLocal(name string, qtype uint16) []Record {
+	key := fmt.Sprintf("%s|%d", name, qtype)
+	now := time.Duration(time.Now().UnixNano())
+	if recs, ok := d.cache.Get(key, now); ok {
+		return recs
+	}
+
+	for zoneName, zone := range d.zones {
+		if strings.HasSuffix(name, zoneName) {
+			for _, r := range zone.Records {
+				if r.Type == qtype && d.nameMatch(name, zoneName, r.Name) {
+					d.cache.Set(key, []Record{r}, time.Duration(r.TTL)*time.Second, time.Duration(time.Now().UnixNano()))
+					return []Record{r}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (d *DNSService) resolveRecursive(ctx ServiceContext, name string) []Record {
 	return d.resolveRecursiveFrom(ctx, name, d.roots, 0)
 }
