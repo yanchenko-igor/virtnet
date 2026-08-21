@@ -76,6 +76,15 @@ type ServiceDef struct {
 	Config map[string]interface{} `json:"config,omitempty"`
 }
 
+type DHCPPoolDef struct {
+	Network   string   `json:"network"`    // e.g., "10.0.0.0/24"
+	Start     string   `json:"start"`      // start IP
+	End       string   `json:"end"`        // end IP
+	Gateway   string   `json:"gateway,omitempty"`
+	DNS       []string `json:"dns,omitempty"`
+	LeaseTime int      `json:"lease_time"` // seconds
+}
+
 // SwitchDef defines a virtual switch.
 type SwitchDef struct {
 	ID string `json:"id"`

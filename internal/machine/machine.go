@@ -158,6 +158,10 @@ func (m *Machine) RegisterService(name string, config map[string]interface{}) er
 	return nil
 }
 
+
+
+// SetDNSServer adds a DNS server address to the machine's DNS server list.
+
 // SetDNSServer adds a DNS server address to the machine's DNS server list.
 func (m *Machine) SetDNSServer(ipStr string) error {
 	addr, err := netip.ParseAddr(ipStr)
@@ -239,6 +243,13 @@ func (m *Machine) resolveHost(name string) (netip.Addr, error) {
 	}
 
 	return netip.Addr{}, fmt.Errorf("no A record found for %s", name)
+}
+
+// RequestDHCP requests an IP address via DHCP from the configured DHCP server.
+// Returns the assigned IP, gateway, DNS servers, and lease time.
+// NOTE: This is a placeholder - DHCP client is not yet implemented.
+func (m *Machine) RequestDHCP() (netip.Addr, netip.Addr, []netip.Addr, time.Duration, error) {
+	return netip.Addr{}, netip.Addr{}, nil, 0, fmt.Errorf("DHCP client not implemented")
 }
 
 // commandCost is the simulated CPU cost of executing one shell command:
