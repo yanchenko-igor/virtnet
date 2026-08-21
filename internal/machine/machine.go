@@ -28,7 +28,8 @@ type Machine struct {
 	procs        map[int]*Process
 	nextPID      int
 	lastExitCode int                         // $? - exit code of last foreground command
-	services     map[uint16]services.Service // port -> service (UDP/TCP handled by Stack)
+	services     map[uint16]services.Service // registered services by port
+	dnsServers   []netip.Addr                // DNS server addresses
 }
 
 // New builds a machine around a fresh network stack on iface.
@@ -157,11 +158,26 @@ func (m *Machine) RegisterService(name string, config map[string]interface{}) er
 	return nil
 }
 
-// resolveHost resolves a hostname to an IP address using the local DNS service
+// SetDNSServer adds a DNS server address to the machine's DNS server list.
+func (m *Machine) SetDNSServer(ipStr string) error {
+	addr, err := netip.ParseAddr(ipStr)
+	if err != nil {
+		return fmt.Errorf("invalid DNS server IP %q: %w", ipStr, err)
+	}
+	m.dnsServers = append(m.dnsServers, addr)
+	return nil
+}
+
+// resolveHost resolves a hostname to an IP address using the configured DNS servers
 func (m *Machine) resolveHost(name string) (netip.Addr, error) {
 	// Try parsing as IP first
 	if addr, err := netip.ParseAddr(name); err == nil {
 		return addr, nil
+	}
+
+	// If no DNS servers configured, fail
+	if len(m.dnsServers) == 0 {
+		return netip.Addr{}, fmt.Errorf("no DNS servers configured")
 	}
 
 	// Create a DNS query message
@@ -174,36 +190,37 @@ func (m *Machine) resolveHost(name string) (netip.Addr, error) {
 		},
 	}
 
-	queryBytes := query.Pack()
+	// Try each DNS server until one responds
+	for _, dnsServer := range m.dnsServers {
+		// Send DNS query via UDP to DNS service
+		sock, err := m.Stack.ListenUDP(0)
+		if err != nil {
+			continue // Try next DNS server
+		}
+		defer sock.Close()
 
-	// Send DNS query via UDP to local DNS service (127.0.0.1:53)
-	sock, err := m.Stack.ListenUDP(0)
-	if err != nil {
-		return netip.Addr{}, fmt.Errorf("failed to create UDP socket: %w", err)
-	}
-	defer sock.Close()
+		if err := sock.SendTo(dnsServer, 53, query.Pack()); err != nil {
+			continue // Try next DNS server
+		}
 
-	if err := sock.SendTo(netip.MustParseAddr("127.0.0.1"), 53, queryBytes); err != nil {
-		return netip.Addr{}, fmt.Errorf("failed to send DNS query: %w", err)
-	}
+		// Wait for response
+		_, _, data, ok := sock.RecvFrom()
+		if !ok {
+			continue // Try next DNS server
+		}
 
-	// Wait for response
-	_, _, data, ok := sock.RecvFrom()
-	if !ok {
-		return netip.Addr{}, fmt.Errorf("no response from DNS server")
-	}
+		// Parse response
+		msg, err := services.ParseDNSMessage(data)
+		if err != nil {
+			continue // Try next DNS server
+		}
 
-	// Parse response
-	msg, err := services.ParseDNSMessage(data)
-	if err != nil {
-		return netip.Addr{}, fmt.Errorf("failed to parse DNS response: %w", err)
-	}
-
-	// Extract A record from answer
-	for _, ans := range msg.Answers {
-		if ans.Type == services.TypeA {
-			if len(ans.Data) == 4 {
-				return netip.AddrFrom4([4]byte{ans.Data[0], ans.Data[1], ans.Data[2], ans.Data[3]}), nil
+		// Extract A record from answer
+		for _, ans := range msg.Answers {
+			if ans.Type == services.TypeA {
+				if len(ans.Data) == 4 {
+					return netip.AddrFrom4([4]byte{ans.Data[0], ans.Data[1], ans.Data[2], ans.Data[3]}), nil
+				}
 			}
 		}
 	}

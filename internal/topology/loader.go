@@ -90,6 +90,14 @@ func (t *Topology) BuildLab() (*lab.Lab, *fabric.Switch, *router.Router, error) 
 				return nil, nil, nil, fmt.Errorf("machine %s gateway: %w", m.ID, err)
 			}
 		}
+		// Set DNS servers if configured
+		if len(m.DNSServers) > 0 {
+			for _, dnsIP := range m.DNSServers {
+				if err := mach.SetDNSServer(dnsIP); err != nil {
+					return nil, nil, nil, fmt.Errorf("machine %s DNS server %s: %w", m.ID, dnsIP, err)
+				}
+			}
+		}
 		// Register services
 		for _, svcDef := range m.Services {
 			if err := mach.RegisterService(svcDef.Type, svcDef.Config); err != nil {
