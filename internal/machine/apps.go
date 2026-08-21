@@ -263,7 +263,7 @@ func cmdPing(m *Machine, args []string) *Process {
 		p.exit(1)
 		return p
 	}
-	addr, err := netip.ParseAddr(dst)
+	addr, err := m.resolveHost(dst)
 	if err != nil {
 		p.writeErr(fmt.Sprintf("ping: unknown host %s\n", dst))
 		p.exit(1)
